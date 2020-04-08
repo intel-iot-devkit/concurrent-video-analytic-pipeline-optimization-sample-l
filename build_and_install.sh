@@ -63,7 +63,7 @@ then
         echo 'export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/mediasdk/lib"' >> ~/.bashrc
     fi
 
-    echo "VAAS sample application building has completed!"
+    echo "Sample application building has completed!"
     echo "Please use ./bin/video_e2e_sample for testing"
 fi
 
