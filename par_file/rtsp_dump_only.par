@@ -1,0 +1,3 @@
+-i::h264 rtsp://172.16.181.169:1554/simu0000   -rtsp_save rtsp1.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0001   -rtsp_save rtsp2.h264
+
