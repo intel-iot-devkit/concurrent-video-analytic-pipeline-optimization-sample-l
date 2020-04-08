@@ -1,0 +1,22 @@
+-i::h264 rtsp://172.16.181.169:1554/simu0000  -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model  -rtsp_save rtsp1.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0001 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp2.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0002 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp3.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0003 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp4.h264
+
+-i::h264 rtsp://172.16.181.169:1554/simu0001  -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp5.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0002  -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp6.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0003  -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp7.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0000 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp8.h264
+
+-i::h264 rtsp://172.16.181.169:1554/simu0002  -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp9.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0003  -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp10.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0000 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp11.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0001 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp12.h264
+
+-i::h264 rtsp://172.16.181.169:1554/simu0003 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp13.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0000 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp14.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0001 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp15.h264
+-i::h264 rtsp://172.16.181.169:1554/simu0000 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp16.h264
+
+
+-vpp_comp_only 16 -w 1920 -h 1080 -async 4 -threads 2 -join -hw  -i::source -ext_allocator -infer::fd ./model -ec::rgb4 -rdrm-DisplayPort

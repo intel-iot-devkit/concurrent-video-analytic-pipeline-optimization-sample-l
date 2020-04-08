@@ -1,0 +1,66 @@
+From ce0895ec4c2b938a7dab2069a411503d8be6f173 Mon Sep 17 00:00:00 2001
+From: Elaine Wang <elaine.wang@intel.com>
+Date: Mon, 13 Jan 2020 19:20:44 +0800
+Subject: [PATCH] MSDK: Enable AVC decode SFC RGB4
+
+The patch includes 3 changes:
+1. Add RGB4 to AVC SFC supported list and add  YUV444 to AVC
+  Chroma supported list and ad
+2. Add directory video_e2e_sample to CMakeLists.txt
+3. Add extend buffer type MFX_EXTBUFF_DEC_VIDEO_PROCESSING to
+  the copy allowed list.
+
+Signed-off-by: Elaine Wang <elaine.wang@intel.com>
+---
+ _studio/mfx_lib/shared/src/mfx_common_int.cpp | 3 ++-
+ samples/CMakeLists.txt                        | 3 +++
+ samples/sample_common/include/sample_utils.h  | 1 +
+ 3 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/_studio/mfx_lib/shared/src/mfx_common_int.cpp b/_studio/mfx_lib/shared/src/mfx_common_int.cpp
+index e97fb60c..97d6d8c4 100644
+--- a/_studio/mfx_lib/shared/src/mfx_common_int.cpp
++++ b/_studio/mfx_lib/shared/src/mfx_common_int.cpp
+@@ -224,6 +224,7 @@ mfxStatus CheckFrameInfoCodecs(mfxFrameInfo  *info, mfxU32 codecId, bool isHW)
+         if (info->FourCC != MFX_FOURCC_NV12 &&
+             info->FourCC != MFX_FOURCC_P010 &&
+             info->FourCC != MFX_FOURCC_NV16 &&
++            info->FourCC != MFX_FOURCC_RGB4 &&
+             info->FourCC != MFX_FOURCC_P210)
+             return MFX_ERR_INVALID_VIDEO_PARAM;
+         break;
+@@ -262,7 +263,7 @@ mfxStatus CheckFrameInfoCodecs(mfxFrameInfo  *info, mfxU32 codecId, bool isHW)
+         break;
+     case MFX_CODEC_AVC:
+         if (info->ChromaFormat != MFX_CHROMAFORMAT_YUV420 && info->ChromaFormat != MFX_CHROMAFORMAT_YUV422 &&
+-            info->ChromaFormat != MFX_CHROMAFORMAT_YUV400)
++            info->ChromaFormat != MFX_CHROMAFORMAT_YUV400 && info->ChromaFormat != MFX_CHROMAFORMAT_YUV444)
+             return MFX_ERR_INVALID_VIDEO_PARAM;
+         break;
+     case MFX_CODEC_HEVC:
+diff --git a/samples/CMakeLists.txt b/samples/CMakeLists.txt
+index b2523d01..333e84e6 100644
+--- a/samples/CMakeLists.txt
++++ b/samples/CMakeLists.txt
+@@ -31,3 +31,6 @@ add_subdirectory(sample_plugins/rotate_cpu)
+ add_subdirectory(sample_plugins/rotate_opencl)
+ add_subdirectory(sample_plugins/vpp_plugin)
+ add_subdirectory(metrics_monitor)
++add_subdirectory(video_e2e_sample)
++
++
+diff --git a/samples/sample_common/include/sample_utils.h b/samples/sample_common/include/sample_utils.h
+index 59575658..bd83348a 100644
+--- a/samples/sample_common/include/sample_utils.h
++++ b/samples/sample_common/include/sample_utils.h
+@@ -680,6 +680,7 @@ private:
+             MFX_EXTBUFF_OPAQUE_SURFACE_ALLOCATION,
+             MFX_EXTBUFF_FEI_PPS,
+             MFX_EXTBUFF_FEI_SPS,
++            MFX_EXTBUFF_DEC_VIDEO_PROCESSING,
+         };
+ 
+         auto it = std::find_if(std::begin(allowed), std::end(allowed),
+-- 
+2.17.1
+

@@ -1,0 +1,6 @@
+-i::h264 /home/work/video/car_1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator -infer::vd ./model
+-i::h264 /home/work/video/cars/VID_20191014_130746_lb.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 0 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator -infer::vd ./model
+-i::h264 /home/work/video/cars/VID_20191014_130849_lb.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 540 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator -infer::vd ./model
+-i::h264 /home/work/video/cars/VID_20191014_130858_lb.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 540 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator -infer::vd ./model
+-vpp_comp 4 -w 1920 -h 1080 -async 4 -threads 2 -join -hw  -threads 3 -i::source -ext_allocator -ec::nv12 -o::h264 comp_out_1080p.h264 -b 6000 
+-vpp_comp_only 4 -w 1920 -h 1080 -async 4 -threads 2 -join -hw  -i::source -ext_allocator -ec::rgb4 -rdrm-DisplayPort
