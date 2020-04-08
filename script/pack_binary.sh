@@ -1,4 +1,6 @@
 #!/bin/bash
+#This script is used to pack all libva, media-driver and MediaSDK binaries to directory svet_e2e_sample_l.
+#Copy whole directory svet_e2e_sample_l to another device and run install_binary.sh to install the binaries
 
 root_path=$PWD
 release_folder=$root_path/svet_e2e_sample_l
