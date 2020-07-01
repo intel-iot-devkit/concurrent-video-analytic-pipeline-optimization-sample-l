@@ -8,7 +8,7 @@ then echo "Please make sure openvino has been installed and enviroment variables
     exit -1;
 fi
 
-./msdk_pre_install_internal.py
+./msdk_pre_install.py
 
 git_projects="MediaSDK media-driver libva"
 for i in $git_projects;
@@ -32,7 +32,7 @@ fi
 cd ../
 cp -rf video_e2e_sample  MediaSDK/samples/
 
-./msdk_pre_install_internal.py -b cfl
+./msdk_pre_install.py -b cfl
 
 if [[ -f MediaSDK/build/__bin/release/video_e2e_sample ]];
 then
