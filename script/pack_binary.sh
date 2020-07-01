@@ -1,9 +1,9 @@
 #!/bin/bash
-#This script is used to pack all libva, media-driver and MediaSDK binaries to directory svet_e2e_sample_l.
-#Copy whole directory svet_e2e_sample_l to another device and run install_binary.sh to install the binaries
+#This script is used to pack all libva, media-driver and MediaSDK binaries to directory cva_e2e_sample_l.
+#Copy whole directory cva_e2e_sample_l to another device and run install_binary.sh to install the binaries
 
 root_path=$PWD
-release_folder=$root_path/svet_e2e_sample_l
+release_folder=$root_path/cva_e2e_sample_l
 echo "Release folder is $release_folder"
 rm -rf $release_folder
 mkdir -p $release_folder/libva
@@ -17,16 +17,16 @@ libva_file_list="../COPYING drm/va_drm.h \
         x11/va_dri2.h x11/va_dricommon.h \
         glx/va_backend_glx.h glx/va_glx.h \
         libva.la libva-drm.la libva-x11.la libva-glx.la \
-        .libs/libva.so.2.600.0  .libs/libva.lai \
-        .libs/libva-drm.so.2.600.0T .libs/libva-drm.lai  \
-        .libs/libva-x11.so.2.600.0T .libs/libva-x11.lai  \
-        .libs/libva-glx.so.2.600.0T .libs/libva-glx.lai  \
-        va.h va_backend.h va_backend_vpp.h va_compat.h \
-        va_dec_hevc.h va_dec_jpeg.h va_dec_vp8.h va_dec_vp9.h \
-        va_drmcommon.h va_egl.h va_enc_hevc.h va_enc_h264.h \
-        va_enc_jpeg.h va_enc_vp8.h va_fei.h va_fei_h264.h \
-        va_enc_mpeg2.h va_fei_hevc.h va_enc_vp9.h va_str.h \
-        va_tpi.h va_version.h va_vpp.h va_x11.h \
+        .libs/libva.so.2.700.0  .libs/libva.lai \
+        .libs/libva-drm.so.2.700.0T .libs/libva-drm.lai  \
+        .libs/libva-x11.so.2.700.0T .libs/libva-x11.lai  \
+        .libs/libva-glx.so.2.700.0T .libs/libva-glx.lai  \
+         va.h va_backend.h va_backend_vpp.h va_compat.h \
+        va_dec_av1.h va_dec_hevc.h va_dec_jpeg.h va_dec_vp8.h \
+        va_dec_vp9.h va_drmcommon.h va_egl.h va_enc_hevc.h \
+        va_enc_h264.h va_enc_jpeg.h va_enc_vp8.h va_fei.h \
+        va_fei_h264.h va_enc_mpeg2.h va_fei_hevc.h va_enc_vp9.h \
+        va_str.h va_tpi.h va_version.h va_vpp.h va_x11.h \
         ../pkgconfig/libva.pc ../pkgconfig/libva-drm.pc ../pkgconfig/libva-x11.pc ../pkgconfig/libva-glx.pc
 "
 echo "Pack libva header files and libraries"
@@ -53,8 +53,8 @@ cp libva-utils/vainfo/vainfo $release_folder/libva-utils/
 
 echo "Pack media-driver binary"
 mkdir -p $release_folder/media-driver
-cp media-driver/build/media_driver/iHD_drv_video.so $release_folder/media-driver/
-cp media-driver/build/cmrtlib/linux/libigfxcmrt.so $release_folder/media-driver/
+cp media_build/media_driver/iHD_drv_video.so $release_folder/media-driver/
+cp media_build/cmrtlib/linux/libigfxcmrt.so $release_folder/media-driver/
 cp media-driver/LICENSE.md $release_folder/media-driver/
 
 echo "Pack MediaSDK binaryies"
@@ -78,10 +78,10 @@ if [ $? != 0 ]; then
 fi
 
 cp __bin/release/libmfx.pc  $msdk_release_dir/lib/pkgconfig/mfx.pc
-cp __bin/release/libmfxhw64.so  $msdk_release_dir/lib/libmfxhw64.so.1.31 
+cp __bin/release/libmfxhw64.so  $msdk_release_dir/lib/libmfxhw64.so.1.32 
 cp __lib/release/libvpp_plugin.a $msdk_release_dir/share/mfx/samples/
 
-sample_bin="sample_decode sample_encode sample_fei sample_multi_transcode libsample_rotate_plugin.so libsample_plugin_opencl.so ocl_rotate.cl"
+sample_bin="sample_decode sample_encode sample_fei sample_multi_transcode"
 for i in $sample_bin;
 do
     cp __bin/release/$i $msdk_release_dir/share/mfx/samples/
@@ -101,12 +101,12 @@ done
 
 cd $root_path
 cp $root_path/script/install_binary.sh  $release_folder/
-cp $root_path/script/download_models.sh   $release_folder/
+cp $root_path/script/download_and_copy_models.sh   $release_folder/
 cp $root_path/script/run_face_detection_test.sh $release_folder/
 
 mkdir -p $release_folder/par_file
-cp par_file/n16_1080p_1080p_dp.par $release_folder/par_file/face_detection_1080p_16_channel.par
-cp par_file/n4_1080p_1080p_dp.par $release_folder/par_file/human_pose_estimation_1080p_4_channel.par 
-cp par_file/n4_vehical_detect_1080p.par  $release_folder/par_file/vehical_detect_1080p_4_channel.par
+cp par_file/inference/n16_face_detection_1080p.par $release_folder/par_file/
+cp par_file/inference/n4_human_pose_1080p.par $release_folder/par_file/ 
+cp par_file/inference/n4_vehicel_detect_1080p.par  $release_folder/par_file/
 echo "libva, media-driver, MediaSDK and SVET sample application binaries have been copied to $release_folder"
 echo "Done"

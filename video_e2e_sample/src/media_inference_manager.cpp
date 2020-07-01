@@ -58,7 +58,8 @@ using namespace cv;
 
 MediaInferenceManager::MediaInferenceManager():
     mInferType(0),
-    mInferInterval(5)
+    mTargetDevice("GPU"),
+    mMaxObjNum(-1)
 {
     mInit = false;
 }
@@ -73,12 +74,30 @@ MediaInferenceManager::~MediaInferenceManager()
     mVehicleDetector = nullptr;
 }
 
-int MediaInferenceManager::Init(int dec_w, int dec_h, int infer_type, const char *model_dir)
+int MediaInferenceManager::Init(int dec_w, int dec_h,
+        int infer_type, const char *model_dir,
+        enum InferDeviceType device, int maxObjNum)
 {
     int ret = 0;
     mInferType = infer_type;
     mDecW = dec_w;
     mDecH = dec_h;
+    mMaxObjNum = maxObjNum;
+
+    switch(device)
+    {
+        case InferDeviceGPU:
+            mTargetDevice = "GPU";
+            break;
+        case InferDeviceCPU:
+            mTargetDevice = "CPU";
+            break;
+        case InferDeviceHDDL:
+            mTargetDevice = "HDDL";
+            break;
+        default:
+            break;
+    }
 
     switch(mInferType)
     {
@@ -247,7 +266,7 @@ int MediaInferenceManager::RunInferVDVA(mfxFrameData *pData, bool inferOffline)
         mVDResults.clear();
     }
 
-    mVehicleDetector->Detect(frame, mVDResults);
+    mVehicleDetector->Detect(frame, mVDResults, mMaxObjNum);
 
     if (!inferOffline)
     {
@@ -257,16 +276,10 @@ int MediaInferenceManager::RunInferVDVA(mfxFrameData *pData, bool inferOffline)
     return 0;
 }
 
-int MediaInferenceManager::GetInferInterval()
-{
-    return mInferInterval;
-}
-
 int MediaInferenceManager::InitHumanPose(const char *model_dir)
 {
     mInputW = 456;
     mInputH = 256;
-    mInferInterval = 6;
 
     char ir_file[IR_PATH_MAX_LEN] = {0};
 
@@ -275,7 +288,7 @@ int MediaInferenceManager::InitHumanPose(const char *model_dir)
         return -1;
     }
 
-    mHPEstimator = new HumanPoseEstimator(ir_file, HP_INFERENCE_DEV, false);
+    mHPEstimator = new HumanPoseEstimator(ir_file, mTargetDevice, false);
     mHPEstimator->Init();
 
     return 0;
@@ -285,6 +298,8 @@ int MediaInferenceManager::InitHumanPose(const char *model_dir)
 int MediaInferenceManager::GetFullIRPath(const char *model_dir, const char *file_path, const char *file_name, char *ir_file)
 {
     char *openvino_dir = nullptr;
+#if 0
+    //only for debug
     if (getenv("MEDIA_AI_USE_OPENVINO_MODEL"))
     {
         openvino_dir = getenv("INTEL_OPENVINO_DIR");
@@ -299,6 +314,7 @@ int MediaInferenceManager::GetFullIRPath(const char *model_dir, const char *file
         }
     }
     else
+#endif
     {
         snprintf(ir_file, IR_PATH_MAX_LEN, "%s/%s", model_dir, file_name);
     }
@@ -323,11 +339,9 @@ int MediaInferenceManager::InitVehicleDetect(const char *model_dir)
 #ifdef VD_LPD_MODEL
     mInputW = 300;
     mInputH = 300;
-    mInferInterval = 1;
 #else
     mInputW = 672;
     mInputH = 384;
-    mInferInterval = 2;
 #endif
 
     char ir_file_vd[IR_PATH_MAX_LEN] = {0};
@@ -344,7 +358,7 @@ int MediaInferenceManager::InitVehicleDetect(const char *model_dir)
     }
 
     mVehicleDetector = new VehicleDetect(false);
-    mVehicleDetector->Init(ir_file_vd, ir_file_va,"GPU");
+    mVehicleDetector->Init(ir_file_vd, ir_file_va, mTargetDevice);
     mVehicleDetector->SetSrcImageSize(mDecW, mDecH);
 
     return 0;
@@ -364,10 +378,9 @@ int MediaInferenceManager::InitFaceDetection(const char *model_dir)
     mInputW = 300;
     mInputH = 300;
     mBatchId = 1;
-    mInferInterval = 6;
 
     mObjectDetector = new ObjectDetect(false);
-    mObjectDetector->Init(ir_file);
+    mObjectDetector->Init(ir_file, mTargetDevice);
     mObjectDetector->SetSrcImageSize(mDecW, mDecH);
 
     return 0;

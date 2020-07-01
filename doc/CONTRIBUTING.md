@@ -1,8 +1,8 @@
-We welcome community contributions to SVET sample application. Thank you for your time!
+We welcome community contributions to the concurrent video analytic sample application. Thank you for your time!
 
 Please note that review and merge might take some time at this point.
 
-SVET sample application is licensed under MIT license. By contributing to the project, you agree to the license and copyright terms therein and release your contribution under these terms.
+The sample application is licensed under MIT license. By contributing to the project, you agree to the license and copyright terms therein and release your contribution under these terms.
 
 Steps:
  - In the commit message, explain what bug is fixed or what new feature is added in details.
@@ -19,7 +19,7 @@ Software Requirements: Ubuntu 18.04, MediaSDK 19.4.0 and OpenVINO 2019 R3
 
 ## How to test your changes
 
-### 1. Build the SVET sample applicaton
+### 1. Build the sample applicaton
 
 ```sh
 ./build_and_install.sh
@@ -51,7 +51,7 @@ n16_1080p_rtsp_simu.pa
 n4_1080p_rtsp_simu_dp.par
 n16_1080p_rtsp_simu_dump.par
 
-Multiple display tests:
+Multiple display test:
 ```sh
 ./bin/video_e2e_sample -par par_file/n16_1080p_1080p_dp_noinfer.par -par par_file/n16_1080p_1080p_dp.par
 ```

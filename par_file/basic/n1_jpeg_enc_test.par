@@ -1,0 +1,1 @@
+-i::h264 /home/intel/Downloads/classroom.h264 -join -hw -async 4 -o::jpeg ./test_#.jpeg -w 1920 -h 1080 -ext_allocator -fps 30 -q 100 -frameskip 9

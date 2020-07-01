@@ -21,6 +21,8 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #define __SAMPLE_PIPELINE_TRANSCODE_H__
 
 #include <stddef.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/photo/photo.hpp>
@@ -86,6 +88,8 @@ using namespace InferenceEngine;
 #endif
 
 #define MAX_PREF_LEN    256
+/* maximum number for jpeg encoding and saving file name*/
+#define MAX_ENSAVE_FILE_NUM 999999
 
 #ifndef MFX_VERSION
 #error MFX_VERSION not defined
@@ -105,7 +109,8 @@ namespace TranscodingSample
         Source,            // means that pipeline makes vpp + encode and get data from shared buffer
         VppComp,           // means that pipeline makes vpp composition + encode and get data from shared buffer
         VppCompOnly,       // means that pipeline makes vpp composition and get data from shared buffer
-        VppCompOnlyEncode  // means that pipeline makes vpp composition + encode and get data from shared buffer
+        VppCompOnlyEncode, // means that pipeline makes vpp composition + encode and get data from shared buffer
+        FakeSink           // means that pipeline get data from share buffer and do nothing. 
     };
 
     enum VppCompDumpMode
@@ -207,6 +212,8 @@ namespace TranscodingSample
         mfxU32 EncodeId; // type of output coded video
         mfxU32 DecodeId; // type of input coded video
 
+        bool bDropDecOutput; // only works with o::raw when the file name is /dev/null
+
         msdk_char  strSrcFile[MSDK_MAX_FILENAME_LEN]; // source bitstream file
         msdk_char  strDstFile[MSDK_MAX_FILENAME_LEN]; // destination bitstream file
         msdk_char  strDumpVppCompFile[MSDK_MAX_FILENAME_LEN]; // VPP composition output dump file
@@ -216,6 +223,9 @@ namespace TranscodingSample
         int InferType; //if > 0, will run inference after decoding
         bool InferOffline; // Default false. If true, the results won't be rendered
         bool RtspDumpOnly; // No transcoding. Only Rtsp dump is enabled. 
+        MediaInferenceManager::InferDeviceType InferDevType; //Target inference device
+        int InferMaxObjNum; // The maximum number of detected objects for classification
+        int InferInterval; //The distance of two inferenced frames
         
         msdk_char  strIRFileDir[MSDK_MAX_FILENAME_LEN]; // directory that contains IR files and label file 
         msdk_char  strRtspSaveFile[MSDK_MAX_FILENAME_LEN]; // save rtsp to local file  
@@ -231,6 +241,9 @@ namespace TranscodingSample
         mfxU16 nQuality; // quality parameter for JPEG encoder
         mfxU16 nDstWidth;  // destination picture width, specified if resizing required
         mfxU16 nDstHeight; // destination picture height, specified if resizing required
+
+        mfxU16 nFrameSkip; // number of frames to drop
+        msdk_char  strFtpAddr[MSDK_MAX_FILENAME_LEN]; // Ftp address
 
         mfxU16 nEncTileRows; // number of rows for encoding tiling
         mfxU16 nEncTileCols; // number of columns for encoding tiling
@@ -614,6 +627,7 @@ namespace TranscodingSample
         virtual mfxStatus SetReader(std::unique_ptr<FileAndRTSPBitstreamReader>& reader);
         virtual mfxStatus SetReader(std::unique_ptr<CSmplYUVReader>& reader);
         virtual mfxStatus SetWriter(std::unique_ptr<CSmplBitstreamWriter>& writer);
+        virtual mfxStatus SetWriterFileName(msdk_char *pFileName);
         virtual mfxStatus GetInputBitstream(mfxBitstreamWrapper **pBitstream);
         virtual mfxStatus GetInputFrame(mfxFrameSurface1 *pSurface);
         virtual mfxStatus ProcessOutputBitstream(mfxBitstreamWrapper* pBitstream);
@@ -683,6 +697,7 @@ namespace TranscodingSample
 
         virtual mfxStatus Decode();
         virtual mfxStatus Encode();
+        virtual mfxStatus DummyFakeSink();
         virtual mfxStatus Transcode();
         virtual mfxStatus DecodeOneFrame(ExtendedSurface *pExtSurface);
         virtual mfxStatus DecodeLastFrame(ExtendedSurface *pExtSurface);
@@ -756,6 +771,11 @@ namespace TranscodingSample
         mfxStatus NV12asI420toBS(mfxFrameSurface1* pSurface, mfxBitstreamWrapper* pBS);
         mfxStatus RGB4toBS(mfxFrameSurface1* pSurface,mfxBitstreamWrapper* pBS);
         mfxStatus YUY2toBS(mfxFrameSurface1* pSurface,mfxBitstreamWrapper* pBS);
+
+        msdk_char *FindChar(msdk_char *strSrcString, mfxU16 nStrLen, msdk_char chr);
+
+	/* Add sequence number as filename suffix to save*/
+        mfxStatus AddSuffixToFilename(msdk_char *strFileName, msdk_char* strSuffixFileName);
 
         void NoMoreFramesSignal();
         mfxStatus AddLaStreams(mfxU16 width, mfxU16 height);
@@ -839,6 +859,8 @@ namespace TranscodingSample
         mfxU32                         m_nTimeout;
         bool                           m_bUseOverlay;
 
+        bool                           m_bDropDecOutput; // only works with o::raw when the file name is /dev/null
+
         bool                           m_bROIasQPMAP;
         bool                           m_bExtMBQP;
         // various external buffers
@@ -855,6 +877,10 @@ namespace TranscodingSample
         mfxU32         m_nID;
         mfxU16         m_AsyncDepth;
         mfxU32         m_nProcessedFramesNum;
+        /* add for jpeg transcoding */
+        mfxU16         m_nFrameSkip; // number of frames to skip
+        msdk_char      m_strBSFile[MSDK_MAX_FILENAME_LEN]; // destination bitstream file
+        mfxU32         m_nEncodedFramesNum;
 
         bool           m_bIsJoinSession;
 
@@ -940,6 +966,9 @@ namespace TranscodingSample
         int mInferOffline; // If true, the results won't be rendered
         msdk_char  mStrIRFileDir[MSDK_MAX_FILENAME_LEN]; // directory that contains IR files and label file
         MediaInferenceManager mInferMnger;
+        MediaInferenceManager::InferDeviceType mInferDevType;
+        int mInferMaxObjNum;  // The maximum number of detected objects for classification
+        int mInferInterval; // The distance between two inferenced frame
         int m_decOutW;  //The width of SFC or VPP output
         int m_decOutH;  //The height of SFC or VPP output
     private:

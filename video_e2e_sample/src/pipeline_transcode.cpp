@@ -120,7 +120,10 @@ sInputParams::sInputParams() : __sInputParams()
 #endif
 
     InferType = MediaInferenceManager::InferTypeNone;
+    InferDevType = MediaInferenceManager::InferDeviceGPU;
+    InferMaxObjNum = -1; //-1 means no limitation
     InferOffline = false;
+    bDropDecOutput = false;
 }
 
 CTranscodingPipeline::CTranscodingPipeline():
@@ -139,6 +142,8 @@ CTranscodingPipeline::CTranscodingPipeline():
     m_nID(0),
     m_AsyncDepth(0),
     m_nProcessedFramesNum(0),
+    m_nFrameSkip(0),
+    m_nEncodedFramesNum(0),
     m_bIsJoinSession(false),
     m_bDecodeEnable(true),
     m_bEncodeEnable(true),
@@ -193,6 +198,8 @@ CTranscodingPipeline::CTranscodingPipeline():
     m_bExtMBQP = false;
 
     mInferType = MediaInferenceManager::InferTypeNone;
+    mInferMaxObjNum = -1;
+    mInferInterval = 6;
     mInferOffline = false;
     //SFC or VPP output size and will be used by inference manager
     //They will be initialized in InitDecMfxParams
@@ -357,7 +364,8 @@ mfxStatus CTranscodingPipeline::VPPPreInit(sInputParams *pParams)
 #ifdef ENABLE_MCTF
             (VPP_FILTER_DISABLED != pParams->mctfParam.mode) ||
 #endif
-             (pParams->EncoderFourCC && decoderFourCC && pParams->EncoderFourCC != decoderFourCC && m_bEncodeEnable))
+             (pParams->EncoderFourCC && decoderFourCC && pParams->EncoderFourCC != decoderFourCC && m_bEncodeEnable) ||
+             (pParams->DecoderFourCC == MFX_FOURCC_RGB4 && m_bDecodeEnable && pParams->EncodeId != MFX_CODEC_JPEG))
         {
             if (m_bIsFieldWeaving || m_bIsFieldSplitting)
             {
@@ -869,17 +877,16 @@ mfxStatus CTranscodingPipeline::Decode()
     //Support inference in pipeline
     int batch_id = 0; //starting from 1
     int frame_num = 0;
-    int infer_interval = 0;
 
     if (mInferType != MediaInferenceManager::InferTypeNone)
     {
         if (0 != mInferMnger.Init(m_decOutW, m_decOutH,
-                    mInferType, mStrIRFileDir))
+                    mInferType, mStrIRFileDir,
+                    mInferDevType, mInferMaxObjNum))
         {
             NoMoreFramesSignal();
             return MFX_ERR_UNKNOWN;
         }
-        infer_interval = mInferMnger.GetInferInterval();
     }
 
     if (m_bUseOverlay)
@@ -1092,18 +1099,18 @@ mfxStatus CTranscodingPipeline::Decode()
 
         if ((!m_bEncodeEnable)
                 && (mInferType != MediaInferenceManager::InferTypeNone)
-                && (DecExtSurface.pSurface != NULL))
+                && (VppExtSurface.pSurface != NULL))
         {
             /* Run inference every infer_interval frame */
-            bool runInfer = !(m_nProcessedFramesNum % infer_interval);
+            bool runInfer = !(m_nProcessedFramesNum % mInferInterval);
 
             if (runInfer || (!mInferOffline))
             {
-                sts = m_pmfxSession->SyncOperation(DecExtSurface.Syncp, MSDK_WAIT_INTERVAL);
+                sts = m_pmfxSession->SyncOperation(VppExtSurface.Syncp, MSDK_WAIT_INTERVAL);
                 MSDK_CHECK_STATUS(sts, "m_pmfxSession->SyncOperation failed");
-                DecExtSurface.Syncp = NULL;
+                VppExtSurface.Syncp = NULL;
 
-                mfxFrameData *pData = &DecExtSurface.pSurface->Data;
+                mfxFrameData *pData = &VppExtSurface.pSurface->Data;
 
                 m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, pData->MemId, pData);
 
@@ -1541,6 +1548,72 @@ mfxStatus CTranscodingPipeline::Encode()
     return sts;
 
 } // mfxStatus CTranscodingPipeline::Encode()
+mfxStatus CTranscodingPipeline::DummyFakeSink()
+{
+    mfxStatus sts = MFX_ERR_NONE;
+    ExtendedSurface DecExtSurface = {};
+    bool isQuit = false;
+    SafetySurfaceBuffer   *curBuffer = m_pBuffer;
+
+    while (MFX_ERR_NONE == sts ||  MFX_ERR_MORE_DATA == sts)
+    {
+        msdk_tick nBeginTime = msdk_time_get_tick(); // microseconds
+        // Getting next frame
+        while (MFX_ERR_MORE_SURFACE == curBuffer->GetSurface(DecExtSurface))
+        {
+            if (MFX_ERR_NONE != curBuffer->WaitForSurfaceInsertion(MSDK_SURFACE_WAIT_INTERVAL)) {
+                msdk_printf(MSDK_STRING("ERROR: timed out waiting surface from upstream component\n"));
+                return MFX_ERR_NOT_FOUND;
+            }
+        }
+
+        curBuffer->ReleaseSurface(DecExtSurface.pSurface);
+        if (curBuffer->m_pNext != NULL && m_nVPPCompEnable > 0)
+        {
+            curBuffer = curBuffer->m_pNext;
+        }
+        else
+        {
+            curBuffer = m_pBuffer;
+        }
+
+        MSDK_CHECK_STATUS(sts, "Unexpected error!!");
+
+        // Count only real surfaces
+        if (DecExtSurface.pSurface)
+        {
+            m_nProcessedFramesNum++;
+        }
+        else
+        {
+            isQuit = true;
+            break;
+        }
+
+        msdk_tick nFrameTime = msdk_time_get_tick() - nBeginTime;
+        if (nFrameTime < m_nReqFrameTime)
+        {
+            MSDK_USLEEP((mfxU32)(m_nReqFrameTime - nFrameTime));
+        }
+    }
+    MSDK_IGNORE_MFX_STS(sts, MFX_ERR_MORE_DATA);
+
+    // Clean up decoder buffers to avoid locking them (if some decoder still have some data to decode, but does not have enough surfaces)
+    // we have to clean up all buffers (all of them have data from decoders)
+    for(SafetySurfaceBuffer * buf = m_pBuffer;buf!=NULL; buf=buf->m_pNext)
+    {
+        while (buf->GetSurface(DecExtSurface)!=MFX_ERR_MORE_SURFACE)
+        {
+            buf->ReleaseSurface(DecExtSurface.pSurface);
+            buf->CancelBuffering();
+        }
+    }
+
+    if (MFX_ERR_NONE == sts)
+        sts = MFX_WRN_VALUE_NOT_CHANGED;
+    return sts;
+
+}
 
 #if MFX_VERSION >= 1022
 void CTranscodingPipeline::FillMBQPBuffer(mfxExtMBQP &qpMap, mfxU16 pictStruct)
@@ -1731,6 +1804,7 @@ mfxStatus CTranscodingPipeline::Transcode()
     bool bEndOfFile = false;
     bool bLastCycle = false;
     bool shouldReadNextFrame=true;
+    bool bEncodeSave = false;
 
     time_t start = time(0);
     while (MFX_ERR_NONE == sts )
@@ -1877,29 +1951,57 @@ mfxStatus CTranscodingPipeline::Transcode()
 
         MSDK_CHECK_STATUS(sts, "Unexpected error!!");
 
-        // encode frame
-        pBS = m_pBSStore->GetNext();
-        if (!pBS)
-            return MFX_ERR_NOT_FOUND;
-
-        m_BSPool.push_back(pBS);
-
         // Set Encoding control if it is required.
-
         SetEncCtrlRT(VppExtSurface, m_bInsertIDR);
         m_bInsertIDR = false;
 
         if (bNeedDecodedFrames)
             m_nProcessedFramesNum++;
 
-        if(m_mfxEncParams.mfx.CodecId != MFX_CODEC_DUMP)
+        /* For JPEG frame skip encoding and saving to local file */
+        if (MFX_CODEC_JPEG == m_mfxEncParams.mfx.CodecId && 0 != m_nFrameSkip)
         {
-            sts = EncodeOneFrame(&VppExtSurface, &m_BSPool.back()->Bitstream);
-        }
-        else
-        {
+            bEncodeSave = !(m_nProcessedFramesNum % m_nFrameSkip);
 
-            sts = Surface2BS(&VppExtSurface, &m_BSPool.back()->Bitstream, m_encoderFourCC);
+            if (bEncodeSave)
+            {
+                pBS = m_pBSStore->GetNext();
+                if (!pBS)
+                    return MFX_ERR_NOT_FOUND;
+
+                m_BSPool.push_back(pBS);
+                sts = EncodeOneFrame(&VppExtSurface, &m_BSPool.back()->Bitstream);
+                m_nEncodedFramesNum++;
+
+                if (MAX_ENSAVE_FILE_NUM <= m_nEncodedFramesNum) // reset encoded frame number when reached to the max number
+                {
+                    m_nEncodedFramesNum = 0;
+                }
+
+            }
+            else
+            {
+                sts = MFX_ERR_NONE;
+                continue;
+             }
+        }
+        else // for non jpeg codec
+        {
+            // encode frame
+            pBS = m_pBSStore->GetNext();
+            if (!pBS)
+                return MFX_ERR_NOT_FOUND;
+
+            m_BSPool.push_back(pBS);
+
+            if(m_mfxEncParams.mfx.CodecId != MFX_CODEC_DUMP)
+            {
+                sts = EncodeOneFrame(&VppExtSurface, &m_BSPool.back()->Bitstream);
+            }
+            else
+            {
+                sts = Surface2BS(&VppExtSurface, &m_BSPool.back()->Bitstream, m_encoderFourCC);
+            }
         }
 
         // check if we need one more frame from decode
@@ -1971,6 +2073,45 @@ mfxStatus CTranscodingPipeline::Transcode()
     return sts;
 } // mfxStatus CTranscodingPipeline::Transcode()
 
+msdk_char *CTranscodingPipeline::FindChar(msdk_char *strSrcString, mfxU16 nStrLen, msdk_char chr)
+{
+    int i;
+
+    for (i = 0; *(strSrcString +i) != '\0' && i < nStrLen; i++)
+    {
+        if (*(strSrcString + i) == chr)
+        {
+            return strSrcString + i;
+        }
+    }
+    return NULL;
+}
+
+mfxStatus CTranscodingPipeline::AddSuffixToFilename(msdk_char *strFileName, msdk_char* strSuffixFileName)
+{
+    mfxStatus sts = MFX_ERR_NONE;
+    int i = 0;
+    const msdk_char *pFile;
+    mfxU16 nStrLen = msdk_strlen(strFileName);
+
+    if (0 >= nStrLen)
+        return MFX_ERR_UNSUPPORTED;
+
+    pFile = FindChar(strFileName, nStrLen, '#');
+
+    if (NULL != pFile)
+    {
+        snprintf(strSuffixFileName, MSDK_MAX_FILENAME_LEN,  "%.*s%06u%s",
+            (int)(pFile - strFileName), strFileName,  (m_nEncodedFramesNum - m_AsyncDepth),  pFile+1);
+    }
+    else
+    {
+        strncpy(strSuffixFileName, strFileName, nStrLen);
+    }
+    return sts;
+}
+
+
 mfxStatus CTranscodingPipeline::PutBS()
 {
     mfxStatus       sts = MFX_ERR_NONE;
@@ -1994,9 +2135,28 @@ mfxStatus CTranscodingPipeline::PutBS()
         outputStatistics.StartTimeMeasurement();
     }
 
-    sts = m_pBSProcessor->ProcessOutputBitstream(&pBitstreamEx->Bitstream);
-    MSDK_CHECK_STATUS(sts, "m_pBSProcessor->ProcessOutputBitstream failed");
+    if (MFX_CODEC_JPEG == m_mfxEncParams.mfx.CodecId)
+    {
+        msdk_char strDistFileName[MSDK_MAX_FILENAME_LEN] = {0};
 
+        sts =  AddSuffixToFilename(m_strBSFile, strDistFileName);
+
+        if (MFX_ERR_NONE != sts)
+            return sts;
+
+        sts = m_pBSProcessor->SetWriterFileName(strDistFileName);
+        MSDK_CHECK_STATUS(sts, "m_pBSProcessor->SetWriter failed");
+        sts = m_pBSProcessor->ProcessOutputBitstream(&pBitstreamEx->Bitstream);
+        MSDK_CHECK_STATUS(sts, "m_pBSProcessor->ProcessOutputBitstream failed");
+    }
+    else
+    {
+        if (!m_bDropDecOutput)
+        {
+            sts = m_pBSProcessor->ProcessOutputBitstream(&pBitstreamEx->Bitstream);
+            MSDK_CHECK_STATUS(sts, "m_pBSProcessor->ProcessOutputBitstream failed");
+        }
+    }
     UnPreEncAuxBuffer(pBitstreamEx->pCtrl);
 
     pBitstreamEx->Bitstream.DataLength = 0;
@@ -2041,6 +2201,9 @@ mfxStatus CTranscodingPipeline::Surface2BS(ExtendedSurface* pSurf,mfxBitstreamWr
         MSDK_CHECK_ERR_NONE_STATUS(sts, MFX_ERR_ABORTED, "SyncOperation failed");
         pSurf->Syncp=0;
 
+        if (m_bDropDecOutput)
+            return MFX_ERR_NONE;
+ 
         //--- Copying data from surface to bitstream
         sts = m_pMFXAllocator->Lock(m_pMFXAllocator->pthis,pSurf->pSurface->Data.MemId,&pSurf->pSurface->Data);
         MSDK_CHECK_STATUS(sts, "m_pMFXAllocator->Lock failed");
@@ -2311,7 +2474,8 @@ mfxStatus CTranscodingPipeline::InitDecMfxParams(sInputParams *pInParams)
     }
 
     //--- Force setting fourcc type if required
-    if(pInParams->DecoderFourCC)
+    //video decoding doesn't support MFX_FOURCC_RGB4 as output
+    if(pInParams->DecoderFourCC && ((pInParams->DecoderFourCC != MFX_FOURCC_RGB4) || (pInParams->DecodeId == MFX_CODEC_JPEG)))
     {
         m_mfxDecParams.mfx.FrameInfo.FourCC=pInParams->DecoderFourCC;
         m_mfxDecParams.mfx.FrameInfo.ChromaFormat=FourCCToChroma(pInParams->DecoderFourCC);
@@ -2346,7 +2510,29 @@ mfxStatus CTranscodingPipeline::InitDecMfxParams(sInputParams *pInParams)
 #endif //MFX_VERSION >= 1022
     mInferType = pInParams->InferType;
     mInferOffline = pInParams->InferOffline;
+    mInferDevType = pInParams->InferDevType;
+    mInferMaxObjNum = pInParams->InferMaxObjNum;
+    if (pInParams->InferInterval > 0)
+    {
+        mInferInterval = pInParams->InferInterval;
+    } else 
+    {
+        switch (mInferType)
+        {
+            case MediaInferenceManager::InferTypeVADetect:
+                mInferInterval = 1;
+                break;
+            case MediaInferenceManager::InferTypeFaceDetection:
+            case MediaInferenceManager::InferTypeHumanPoseEst:
+                mInferInterval = 6;
+                break;
+            default:
+                break;
+        }
+    }
+
     snprintf(mStrIRFileDir, MSDK_MAX_FILENAME_LEN, "%s", pInParams->strIRFileDir);
+    
     return MFX_ERR_NONE;
 }// mfxStatus CTranscodingPipeline::InitDecMfxParams()
 
@@ -2545,7 +2731,12 @@ MFX_IOPATTERN_IN_VIDEO_MEMORY : MFX_IOPATTERN_IN_SYSTEM_MEMORY);
     {
         m_mfxEncParams.mfx.Interleaved = 1;
         m_mfxEncParams.mfx.Quality = pInParams->nQuality;
+
+        if (0 >= pInParams->nQuality)
+            msdk_printf(MSDK_STRING(" ERROR: Invalided quality pInParams->nQuality %d, Quality parameter for JPEG encoder; in range [1,100], 100 is the best quality. \n"), pInParams->nQuality);
         m_mfxEncParams.mfx.RestartInterval = 0;
+        m_nFrameSkip = pInParams->nFrameSkip;
+        msdk_opt_read(pInParams->strDstFile, m_strBSFile);
         MSDK_ZERO_MEMORY(m_mfxEncParams.mfx.reserved5);
     }
 
@@ -2973,6 +3164,28 @@ mfxStatus CTranscodingPipeline::InitVppMfxParams(sInputParams *pInParams)
         }
     }
 
+    //Set VPP parameters for decoding session
+    if (pInParams->DecoderFourCC == MFX_FOURCC_RGB4)
+    {
+        m_mfxVppParams.vpp.Out.FourCC = pInParams->DecoderFourCC;
+        m_mfxVppParams.vpp.Out.ChromaFormat = FourCCToChroma(pInParams->DecoderFourCC);
+        m_mfxVppParams.vpp.Out.BitDepthLuma = m_mfxVppParams.vpp.Out.BitDepthChroma = 8;
+        if (pInParams->nVppCompDstH)
+        {
+            m_mfxVppParams.vpp.Out.CropH = pInParams->nVppCompDstH;
+            m_mfxVppParams.vpp.Out.Height = MSDK_ALIGN16(pInParams->nVppCompDstH);
+        }
+
+        if (pInParams->nVppCompDstW)
+        {
+            m_mfxVppParams.vpp.Out.CropW = pInParams->nVppCompDstW;
+            m_mfxVppParams.vpp.Out.Width = MSDK_ALIGN16(pInParams->nVppCompDstW);
+        }
+
+        m_decOutW = pInParams->nVppCompDstW;
+        m_decOutH = pInParams->nVppCompDstH;
+    }
+
     /* VPP Comp Init */
     if (((pInParams->eModeExt == VppComp) || (pInParams->eModeExt == VppCompOnly)) && (pInParams->numSurf4Comp != 0))
     {
@@ -3280,7 +3493,7 @@ mfxStatus CTranscodingPipeline::AllocFrames()
         }
 
         // Do not correct anything if we're using raw output - we'll need those surfaces for storing data for writer
-        if(m_mfxEncParams.mfx.CodecId != MFX_CODEC_DUMP)
+        if(m_bEncodeEnable && m_mfxEncParams.mfx.CodecId != MFX_CODEC_DUMP)
         {
            // In case of rendering enabled we need to add 1 additional surface for renderer
            if((m_nVPPCompEnable == VppCompOnly) || (m_nVPPCompEnable == VppCompOnlyEncode))
@@ -3608,6 +3821,7 @@ mfxStatus CTranscodingPipeline::Init(sInputParams *pParams,
     m_FrameNumberPreference = pParams->FrameNumberPreference;
     m_numEncoders = 0;
     m_bUseOverlay = pParams->DecodeId == MFX_CODEC_RGB4 ? true : false;
+    m_bDropDecOutput = pParams->bDropDecOutput;
     m_bRobustFlag = pParams->bRobustFlag;
     m_bSoftGpuHangRecovery = pParams->bSoftRobustFlag;
     m_nRotationAngle = pParams->nRotationAngle;
@@ -3648,6 +3862,11 @@ mfxStatus CTranscodingPipeline::Init(sInputParams *pParams,
     if ((pParams->statisticsLogFile || !pParams->DumpLogFileName.empty()) &&
         0 == statisticsWindowSize)
         statisticsWindowSize = m_MaxFramesForTranscode;
+
+    if (FakeSink == pParams->eModeExt)
+    {
+        m_bEncodeEnable = false;
+    }
 
     if (m_bEncodeEnable)
     {
@@ -3715,7 +3934,8 @@ mfxStatus CTranscodingPipeline::Init(sInputParams *pParams,
         return MFX_ERR_UNSUPPORTED;
     }
 
-    if ((VppComp == pParams->eModeExt) || (VppCompOnly == pParams->eModeExt))
+    if ((VppComp == pParams->eModeExt) || (VppCompOnly == pParams->eModeExt)
+            || FakeSink == pParams->eModeExt)
     {
         if(m_nVPPCompEnable != VppCompOnlyEncode)
             m_nVPPCompEnable = pParams->eModeExt;
@@ -4540,6 +4760,12 @@ mfxStatus CTranscodingPipeline::Run()
         ss << MSDK_STRING("CTranscodingPipeline::Run::Encode() [") << GetSessionText() << MSDK_STRING("] failed");
         MSDK_CHECK_STATUS(sts, ss.str());
     }
+    else if (m_nVPPCompEnable == FakeSink)
+    {
+        sts = DummyFakeSink();
+        ss << MSDK_STRING("CTranscodingPipeline::Run::FakeSink() [") << GetSessionText() << MSDK_STRING("] failed");
+        MSDK_CHECK_STATUS(sts, ss.str());
+    }
     else
         return MFX_ERR_UNSUPPORTED;
 
@@ -4717,6 +4943,19 @@ mfxStatus FileBitstreamProcessor::SetReader(std::unique_ptr<FileAndRTSPBitstream
 mfxStatus FileBitstreamProcessor::SetWriter(std::unique_ptr<CSmplBitstreamWriter>& writer)
 {
     m_pFileWriter = std::move(writer);
+
+    return MFX_ERR_NONE;
+}
+
+mfxStatus FileBitstreamProcessor::SetWriterFileName(msdk_char *pFileName)
+{
+    if (!m_pFileWriter.get() && NULL != pFileName)
+        return MFX_ERR_UNSUPPORTED;
+
+    mfxStatus sts = m_pFileWriter->Init(pFileName);
+    MSDK_CHECK_STATUS(sts, "m_pFileWriter->Init failed");
+    sts =  SetWriter(m_pFileWriter);
+    MSDK_CHECK_STATUS(sts, "m_pFileWriter->Init failed");
 
     return MFX_ERR_NONE;
 }

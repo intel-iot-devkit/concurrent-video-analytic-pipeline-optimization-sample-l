@@ -44,8 +44,11 @@ FileAndRTSPBitstreamReader::~FileAndRTSPBitstreamReader()
 #ifdef RTSP_SUPPORT
     if (m_bIsRTSP)
     {
-        delete m_packets;
-	m_packets = nullptr;
+        if (m_packets)
+        {
+            delete m_packets;
+            m_packets = nullptr;
+        }
         delete m_rtsp_thread;
     }
 #endif
@@ -301,7 +304,7 @@ void FileAndRTSPBitstreamReader::RtspPacketReader(FileAndRTSPBitstreamReader  *c
             }
             else
             {
-                ret == 0;
+                ret = 0;
                 continue;
             }
 
