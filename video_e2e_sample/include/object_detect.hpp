@@ -41,7 +41,7 @@ class ObjectDetect {
 public:
 
     ObjectDetect(bool mEnablePerformanceReport = false);
-    void Init(const std::string& detectorModelPath,
+    int Init(const std::string& detectorModelPath,
             const std::string& targetDeviceName = "GPU");
     void Detect(const cv::Mat& image, std::vector<ObjectDetectResult>& results);
     void SetSrcImageSize(int width, int height);

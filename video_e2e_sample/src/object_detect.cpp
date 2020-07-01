@@ -37,7 +37,7 @@ ObjectDetect::ObjectDetect(bool enablePerformanceReport)
     return;
 }
 
-void ObjectDetect::Init(const std::string& detectorModelPath,
+int ObjectDetect::Init(const std::string& detectorModelPath,
         const std::string& targetDeviceName)
 {
     static std::mutex initLock;
@@ -56,12 +56,22 @@ void ObjectDetect::Init(const std::string& detectorModelPath,
     mDetectorNetReader.ReadWeights(binFileName);
     mDetectorNetwork = mDetectorNetReader.getNetwork();
     mDetectorNetwork.setBatchSize(1);
-    InferenceEngine::InputInfo::Ptr inputInfo = mDetectorNetwork.getInputsInfo().begin()->second;
+
+    auto inputP = mDetectorNetwork.getInputsInfo().begin();
+    if (inputP == mDetectorNetwork.getInputsInfo().end())
+    {
+       return -1;
+    } 
+    InferenceEngine::InputInfo::Ptr inputInfo = inputP->second;
     inputInfo->setPrecision(Precision::U8);
     inputInfo->getInputData()->setLayout(Layout::NCHW);
 
     InferenceEngine::OutputsDataMap outputInfo = mDetectorNetwork.getOutputsInfo();
     auto outputBlobsIt = outputInfo.begin();
+    if (outputBlobsIt == outputInfo.end())
+    {
+        return -1;
+    }
     mDetectorRoiBlobName = outputBlobsIt->first;
 
     DataPtr& output = outputInfo.begin()->second;
@@ -74,6 +84,7 @@ void ObjectDetect::Init(const std::string& detectorModelPath,
 
     mExecutableNetwork = mPlugin.LoadNetwork(mDetectorNetwork, {});
     mDetectorRequest = mExecutableNetwork.CreateInferRequest();
+    return 0;
 }
 
 void ObjectDetect::SetSrcImageSize(int width, int height)
@@ -84,7 +95,12 @@ void ObjectDetect::SetSrcImageSize(int width, int height)
 
 void ObjectDetect::Detect(const cv::Mat& image, std::vector<ObjectDetectResult>& results)
 {
-    InferenceEngine::Blob::Ptr input = mDetectorRequest.GetBlob(mDetectorNetwork.getInputsInfo().begin()->first);
+    auto inputIt = mDetectorNetwork.getInputsInfo().begin();
+    if (inputIt == mDetectorNetwork.getInputsInfo().end())
+    {
+        return;
+    }
+    InferenceEngine::Blob::Ptr input = mDetectorRequest.GetBlob(inputIt->first);
     matU8ToBlob<uint8_t>(image, input);
     mDetectorRequest.Infer();
 

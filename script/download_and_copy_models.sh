@@ -26,8 +26,8 @@ do
             echo "Copy $i IR files to directory model/"
             cp ${INTEL_OPENVINO_DIR}/deployment_tools/open_model_zoo/tools/downloader/intel/$i/FP16/$i.xml ${INTEL_OPENVINO_DIR}/deployment_tools/open_model_zoo/tools/downloader/intel/$i/FP16/$i.bin $root_path/$target_dir/
         else
-            echo "./downloader.py --name $i  --precisions FP16"
-            sudo -E ./downloader.py --name $i  --precisions FP16
+            echo "./downloader.py --name $i  --precisions FP16 --num_attempts 10"
+            sudo -E ./downloader.py --name $i  --precisions FP16 --num_attempts 10
 
             if [ -f "${INTEL_OPENVINO_DIR}/deployment_tools/open_model_zoo/tools/downloader/intel/$i/FP16/$i.xml" ]
             then

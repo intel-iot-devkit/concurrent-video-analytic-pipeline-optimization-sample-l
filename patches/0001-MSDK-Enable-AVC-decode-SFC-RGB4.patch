@@ -9,6 +9,8 @@ The patch includes 3 changes:
 2. Add directory video_e2e_sample to CMakeLists.txt
 3. Add extend buffer type MFX_EXTBUFF_DEC_VIDEO_PROCESSING to
   the copy allowed list.
+4. Remove rotate_opencl from sample/CMakeLists.txt because
+  compiling this sample can fail on some system.
 
 Signed-off-by: Elaine Wang <elaine.wang@intel.com>
 ---
@@ -39,16 +41,17 @@ index e97fb60c..97d6d8c4 100644
          break;
      case MFX_CODEC_HEVC:
 diff --git a/samples/CMakeLists.txt b/samples/CMakeLists.txt
-index b2523d01..333e84e6 100644
+index b2523d01..c24f80f5 100644
 --- a/samples/CMakeLists.txt
 +++ b/samples/CMakeLists.txt
-@@ -31,3 +31,6 @@ add_subdirectory(sample_plugins/rotate_cpu)
- add_subdirectory(sample_plugins/rotate_opencl)
+@@ -28,6 +28,6 @@ add_subdirectory(sample_vpp)
+ add_subdirectory(sample_multi_transcode)
+ add_subdirectory(sample_misc/wayland)
+ add_subdirectory(sample_plugins/rotate_cpu)
+-add_subdirectory(sample_plugins/rotate_opencl)
  add_subdirectory(sample_plugins/vpp_plugin)
  add_subdirectory(metrics_monitor)
 +add_subdirectory(video_e2e_sample)
-+
-+
 diff --git a/samples/sample_common/include/sample_utils.h b/samples/sample_common/include/sample_utils.h
 index 59575658..bd83348a 100644
 --- a/samples/sample_common/include/sample_utils.h

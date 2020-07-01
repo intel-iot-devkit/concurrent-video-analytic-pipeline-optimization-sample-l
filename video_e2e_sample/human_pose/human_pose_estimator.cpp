@@ -51,7 +51,7 @@ HumanPoseEstimator::HumanPoseEstimator(const std::string& modelpath,
       modelPath(modelpath) {
 }
 
-void HumanPoseEstimator::Init()
+int HumanPoseEstimator::Init()
 {
     plugin = InferenceEngine::PluginDispatcher()
             .getPluginByDevice(targetDeviceName);
@@ -63,18 +63,32 @@ void HumanPoseEstimator::Init()
     std::string binFileName = fileNameNoExt(modelPath) + ".bin";
     netReader.ReadWeights(binFileName);
     network = netReader.getNetwork();
-    InferenceEngine::InputInfo::Ptr inputInfo = network.getInputsInfo().begin()->second;
-    inputLayerSize = cv::Size(inputInfo->getTensorDesc().getDims()[3], inputInfo->getTensorDesc().getDims()[2]);
+    auto inputIt = network.getInputsInfo().begin();
+    if (inputIt == network.getInputsInfo().end())
+    {
+        return -1;
+    }
 
+    InferenceEngine::InputInfo::Ptr inputInfo = inputIt->second;
+    inputLayerSize = cv::Size(inputInfo->getTensorDesc().getDims()[3], inputInfo->getTensorDesc().getDims()[2]);
     InferenceEngine::OutputsDataMap outputInfo = network.getOutputsInfo();
     auto outputBlobsIt = outputInfo.begin();
+    if (outputBlobsIt == outputInfo.end())
+    {
+        return -1;
+    }
     pafsBlobName = outputBlobsIt->first;
-    heatmapsBlobName = (++outputBlobsIt)->first;
+    outputBlobsIt++;
+    if (outputBlobsIt == outputInfo.end())
+    {
+        return -1;
+    }
+    heatmapsBlobName = outputBlobsIt->first;
 
     LoadNetwork();
 
     request = executableNetwork.CreateInferRequest();
-    return;
+    return 0;
 }
 
 void HumanPoseEstimator::LoadNetwork()
@@ -99,7 +113,14 @@ std::vector<HumanPose> HumanPoseEstimator::estimate(const cv::Mat& image) {
         executableNetwork = plugin.LoadNetwork(network, {});
         request = executableNetwork.CreateInferRequest();
     }
-    InferenceEngine::Blob::Ptr input = request.GetBlob(network.getInputsInfo().begin()->first);
+
+    auto inputIt = network.getInputsInfo().begin();
+    if (inputIt == network.getInputsInfo().end())
+    {
+        return std::vector<HumanPose>();
+    }
+
+    InferenceEngine::Blob::Ptr input = request.GetBlob(inputIt->first);
     auto buffer = input->buffer().as<InferenceEngine::PrecisionTrait<InferenceEngine::Precision::FP32>::value_type *>();
     preprocess(image, static_cast<float*>(buffer));
 

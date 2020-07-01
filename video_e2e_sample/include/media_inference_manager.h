@@ -29,7 +29,11 @@ public:
 
     MediaInferenceManager();
     ~MediaInferenceManager();
-    int Init(int dec_w, int dec_h, int infer_type, const char *model_dir);
+
+    enum InferDeviceType {InferDeviceGPU, InferDeviceCPU, InferDeviceHDDL };
+
+    int Init(int dec_w, int dec_h, int infer_type, const char *model_dir,
+            enum InferDeviceType device, int maxObjNum);
     int GetInferInterval();
     /* If inferOffline is true, the results won't be render to input surface */
     int RunInfer(mfxFrameData *data, bool inferOffline);
@@ -61,8 +65,11 @@ private:
     int mInputW;
     int mInputH;
     int mBatchId;
+    int mMaxObjNum;
+    std::string mTargetDevice;
 
     int mInferInterval;
+    int mInferDevType;
     int mInit;
 
     /*Face Detection*/

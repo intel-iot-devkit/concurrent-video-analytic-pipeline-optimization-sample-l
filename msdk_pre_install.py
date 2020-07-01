@@ -127,7 +127,7 @@ if __name__ == "__main__":
         
         print "Please input the sudo password to proceed\n"
         cmd ="sudo apt-get -y install git libssl-dev dh-autoreconf cmake libgl1-mesa-dev libpciaccess-dev build-essential curl imagemagick unzip yasm libjpeg-dev libavcodec-dev libavutil-dev libavformat-dev;"
-        cmd+="sudo apt-get -y install libopencv-dev checkinstall pkg-config libgflags-dev"
+        cmd+="sudo apt-get -y install checkinstall pkg-config"
         os.system(cmd)
 
         print ""
@@ -138,41 +138,38 @@ if __name__ == "__main__":
         # Pull all the source code
         print "libva"
         if not os.path.exists("%s/libva"%(WORKING_DIR)):
-            cmd = "cd %s; git clone https://github.com/intel/libva.git;"%(WORKING_DIR) 
-            cmd+= "cd libva;"
-            cmd+="git checkout 5f693d9e603e0e83928cec67c30b6ac902d7aa85;" # 04/12/18
+            cmd = "cd %s; rm -f libva.tar.gz; wget https://github.com/intel/libva/archive/2.7.1.tar.gz -O libva.tar.gz;"%(WORKING_DIR) 
+            cmd+= "tar zxf libva.tar.gz; mv libva-2.7.1 libva"
             print cmd
             os.system(cmd);
 
         print "libva-utils"
         if not os.path.exists("%s/libva-utils"%(WORKING_DIR)):
-            cmd = "cd %s; git clone https://github.com/intel/libva-utils.git;"%(WORKING_DIR)
-            cmd += "cd libva-utils;"
-            cmd+="git checkout 8ea1eba433dcbceb0e5dcb54b8e3f984987f7a17; " # 03/20/18
+            cmd = "cd %s;rm -f libva-utils.tar.gz;"%(WORKING_DIR)
+            cmd += "wget https://github.com/intel/libva-utils/archive/2.7.1.tar.gz -O libva-utils.tar.gz;"
+            cmd += "tar zxf libva-utils.tar.gz; mv libva-utils-2.7.1 libva-utils;"
             print cmd
             os.system(cmd);
 
         print "media-driver"
         if not os.path.exists("%s/media-driver"%(WORKING_DIR)): 
-            cmd = "cd %s; git clone https://github.com/intel/media-driver.git; "%(WORKING_DIR)
-            cmd += "cd media-driver;"
-            cmd+= "git checkout 12b7fcded6c74377ecf57eb8258f5e3d55ca722e" # 04/16/18
+            cmd = "cd %s; rm -f intel-media-20.1.1.tar.gz;"%(WORKING_DIR)
+            cmd += "wget https://github.com/intel/media-driver/archive/intel-media-20.1.1.tar.gz; "
+            cmd += "tar zxf intel-media-20.1.1.tar.gz; mv media-driver-intel-media-20.1.1 media-driver"
             print cmd
             os.system(cmd);
 
         print "gmmlib"
         if not os.path.exists("%s/gmmlib"%(WORKING_DIR)): 
-            cmd = "cd %s; git clone https://github.com/intel/gmmlib.git; "%(WORKING_DIR)
-            cmd += "cd gmmlib;"
-            cmd+= "git checkout ebfcfd565031dbd7b45089d9054cd44a501f14a9" # 04/05/18
+            cmd = "cd %s;rm -f intel-gmmlib-20.1.1.tar.gz; wget https://github.com/intel/gmmlib/archive/intel-gmmlib-20.1.1.tar.gz; "%(WORKING_DIR)
+            cmd += "tar zxf intel-gmmlib-20.1.1.tar.gz; mv gmmlib-intel-gmmlib-20.1.1 gmmlib"
             print cmd
             os.system(cmd);
 
         print "MediaSDK"
         if not os.path.exists("%s/MediaSDK"%(WORKING_DIR)): 
-            cmd = "cd %s; git clone https://github.com/Intel-Media-SDK/MediaSDK.git; "%(WORKING_DIR)
-            cmd+= "cd MediaSDK;"
-            cmd+= "git checkout f8f6646afcaec410ca037f0176814dd9d7ca4900" # 04/16/18
+            cmd = "cd %s; rm -f intel-mediasdk-20.1.1.tar.gz;  wget https://github.com/Intel-Media-SDK/MediaSDK/archive/intel-mediasdk-20.1.1.tar.gz; "%(WORKING_DIR)
+            cmd+= "tar zxf intel-mediasdk-20.1.1.tar.gz; mv MediaSDK-intel-mediasdk-20.1.1 MediaSDK"
             print cmd
             os.system(cmd);
 
@@ -209,9 +206,9 @@ if __name__ == "__main__":
         print cmd
         os.system(cmd)
 
-        cmd = "mkdir -p %s/media-driver/build; "%(WORKING_DIR)
-        cmd+= "cd %s/media-driver/build; "%(WORKING_DIR)
-        cmd+= "cmake ../; "
+        cmd = "mkdir -p %s/media_build; "%(WORKING_DIR)
+        cmd+= "cd %s/media_build; "%(WORKING_DIR)
+        cmd+= "cmake ../media-driver; "
         cmd+= "make -j4; sudo make install"
         print cmd
         os.system(cmd)
@@ -227,7 +224,6 @@ if __name__ == "__main__":
             sys.exit() 
 
         # Build and install Media SDK library and samples
-        # MediaSDK origin: 22dae397ae17d29b4734adb0e5a998f32a9c25b2 (022218)
         cmd ="cd %s/MediaSDK; "%(WORKING_DIR)
         cmd+="mkdir -p build; "
         cmd+="cd build; "
@@ -242,22 +238,6 @@ if __name__ == "__main__":
         if not os.path.exists("%s/MediaSDK"%(WORKING_DIR)): 
             print "MediaSDK source code doen't exist!"
             sys.exit()
-
-        r=subprocess.check_output("grep -c \"export LIBVA_DRIVER_NAME=iHD\" ~/.bashrc", shell=True)
-
-        if r >= 1:
-            sys.exit()
-
-        print ""
-        print "************************************************************************"
-        print_info("Set environment variables. ", loglevelcode.INFO)
-        print "************************************************************************"
-        cmd = "echo 'export MFX_HOME=/opt/intel/mediasdk' >> ~/.bashrc; "
-        cmd+= "echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:/usr/lib' >> ~/.bashrc; "
-        cmd+= "echo 'export LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri' >> ~/.bashrc; "
-        cmd+= "echo 'export LIBVA_DRIVER_NAME=iHD' >> ~/.bashrc"
-        print cmd
-        os.system(cmd)
 
         cmd = "sudo echo '/usr/lib/x86_64-linux-gnu' > /etc/ld.so.conf.d/libdrm-intel.conf; "
         cmd+= "sudo echo '/usr/lib' >> /etc/ld.so.conf.d/libdrm-intel.conf; "

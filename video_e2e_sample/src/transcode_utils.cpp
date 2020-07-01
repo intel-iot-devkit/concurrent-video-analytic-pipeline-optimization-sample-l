@@ -290,6 +290,7 @@ void TranscodingSample::PrintHelp()
     msdk_printf(MSDK_STRING("  -NalHrdConformance:<on,off>               Enables or disables picture HRD conformance\n"));
     msdk_printf(MSDK_STRING("  -VuiNalHrdParameters:<on,off>             Enables or disables NAL HRD parameters in VUI header\n"));
 
+    msdk_printf(MSDK_STRING("  -frameskip   <num>           Number of frames to skip, used by jpeg encoder to choose 1 frame out of  <num> frames to proceed. \n"));
     msdk_printf(MSDK_STRING("\n"));
     msdk_printf(MSDK_STRING("Pipeline description (vpp options):\n"));
     msdk_printf(MSDK_STRING("  -deinterlace             Forces VPP to deinterlace input stream\n"));
@@ -330,6 +331,7 @@ void TranscodingSample::PrintHelp()
     msdk_printf(MSDK_STRING("  -vpp_comp <sourcesNum>      Enables composition from several decoding sessions. Result is written to the file\n"));
     msdk_printf(MSDK_STRING("  -vpp_comp_only <sourcesNum> Enables composition from several decoding sessions. Result is shown on screen\n"));
     msdk_printf(MSDK_STRING("  -vpp_comp_num_tiles <Num>   Quantity of tiles for composition. if equal to 0 tiles processing ignored\n"));
+    msdk_printf(MSDK_STRING("  -fake_sink <sourcesNum>     Enable a fake sink that consumes surfaces from shared data buffer and do nothings. This option must be used together with -o option. It's used to mearsure multiple video decoding performance.\n"));
     msdk_printf(MSDK_STRING("  -vpp_comp_dst_x             X position of this stream in composed stream (should be used in decoder session)\n"));
     msdk_printf(MSDK_STRING("  -vpp_comp_dst_y             Y position of this stream in composed stream (should be used in decoder session)\n"));
     msdk_printf(MSDK_STRING("  -vpp_comp_dst_h             Height of this stream in composed stream (should be used in decoder session)\n"));
@@ -352,8 +354,13 @@ void TranscodingSample::PrintHelp()
     msdk_printf(MSDK_STRING("Inference parameters :\n"));
     msdk_printf(MSDK_STRING("  -infer::<fd,hp,vd> <IR_files_directory>  specify the inference mode and directory that stores IR files(.xml, .bin). The inference function uses the output surface of decode as input and renders the results on it\n"));
     msdk_printf(MSDK_STRING("  -infer::offline              With this option, the inference results won't be rendered to surface\n)"));
+    msdk_printf(MSDK_STRING("  -infer::device <GPU, HDDL>   Specify the target inference device. GPU is used by default\n)"));
+    msdk_printf(MSDK_STRING("  -infer::interval <number>    Specify inference interval. For example, '-infer::interval 6' means every 6 frame, there is one frame will be inferenced, and the inference fps is 30/6 = 5. By default, interval is 6 for face detection, 6 for human pose estimation and 1 for vehicel detection.\n)"));
+    msdk_printf(MSDK_STRING("  -infer::max_detect <number>  Set the maximum number of detected objects. If there are more objects detected, they won't be processed further, i.e. classification or drawing box\n)"));
     msdk_printf(MSDK_STRING("\n"));
     msdk_printf(MSDK_STRING("\n"));
+    msdk_printf(MSDK_STRING("RTSP parameters :\n"));
+    msdk_printf(MSDK_STRING("  -rtsp_save <file_name>       Save the input RTSP stream to local file. This option must be used together with input RTSP stream(-i rtsp:\\rtspurl).")); 
     msdk_printf(MSDK_STRING("\n"));
     msdk_printf(MSDK_STRING("ParFile format:\n"));
     msdk_printf(MSDK_STRING("  ParFile is extension of what can be achieved by setting pipeline in the command\n"));
@@ -1433,28 +1440,50 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
         else if ( (0 == msdk_strncmp(MSDK_STRING("-infer::"), argv[i], msdk_strlen(MSDK_STRING("-infer::")))))
         {
             bool needIRPath = false;
+            enum InferPARType
+            {
+                INFER_PAR_MODEL,
+                INFER_PAR_OFFLINE,
+                INFER_PAR_DEVICE,
+                INFER_PAR_INTERVAL,
+                INFER_PAR_MAX_DETECT
+            } inferParType;
+
             if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("fd"), msdk_strlen(MSDK_STRING("fd")))) //Face detection
             {
                 InputParams.InferType = MediaInferenceManager::InferTypeFaceDetection;
-                needIRPath = true;
+                inferParType = INFER_PAR_MODEL;
                 msdk_printf(MSDK_STRING("Inference: Face Detection. Model directory %s \n"), argv[i+1]);
             }
             else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("hp"), msdk_strlen(MSDK_STRING("hp")))) //Human Pose
             {
                 InputParams.InferType = MediaInferenceManager::InferTypeHumanPoseEst;
-                needIRPath = true;
+                inferParType = INFER_PAR_MODEL;
                 msdk_printf(MSDK_STRING("Inference: Human Pose Estimation. Model directory %s \n"), argv[i+1]);
             }
             else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("vd"), msdk_strlen(MSDK_STRING("vd")))) //Vehicle Detect
             {
                 InputParams.InferType = MediaInferenceManager::InferTypeVADetect;
-                needIRPath = true;
+                inferParType = INFER_PAR_MODEL;
                 msdk_printf(MSDK_STRING("Inference: Vehicle and Attribute Detect. Model directory %s \n"), argv[i+1]);
             }
             else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("offline"), msdk_strlen(MSDK_STRING("offline")))) //Offline reference
             {
                 InputParams.InferOffline = true;
+                inferParType = INFER_PAR_OFFLINE;
                 msdk_printf(MSDK_STRING("Offline inference is enabled\n"));
+            }
+            else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("device"), msdk_strlen(MSDK_STRING("device"))))
+            {
+                inferParType = INFER_PAR_DEVICE;
+            }
+            else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("interval"), msdk_strlen(MSDK_STRING("interval"))))
+            {
+                inferParType = INFER_PAR_INTERVAL;
+            }
+            else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("max_detect"), msdk_strlen(MSDK_STRING("max_detect")))) 
+            {
+                inferParType = INFER_PAR_MAX_DETECT;
             }
             else
             {
@@ -1462,12 +1491,55 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
                 return  MFX_ERR_UNSUPPORTED;
             }
 
-            if (needIRPath)
+            switch (inferParType)
             {
-                VAL_CHECK(i+1 == argc, i, argv[i]);
-                i++;
-                SIZE_CHECK((msdk_strlen(argv[i])+1) > MSDK_ARRAY_LEN(InputParams.strIRFileDir));
-                msdk_opt_read(argv[i], InputParams.strIRFileDir);
+                case INFER_PAR_MODEL:
+                    VAL_CHECK(i+1 == argc, i, argv[i]);
+                    i++;
+                    SIZE_CHECK((msdk_strlen(argv[i])+1) > MSDK_ARRAY_LEN(InputParams.strIRFileDir));
+                    msdk_opt_read(argv[i], InputParams.strIRFileDir);
+                    break;
+
+                case INFER_PAR_DEVICE:
+                    VAL_CHECK(i+1 == argc, i, argv[i]);
+                    i++;
+                    if (0 == msdk_strncmp(MSDK_STRING("HDDL"), argv[i], msdk_strlen(MSDK_STRING("HDDL"))))
+                    {
+                        InputParams.InferDevType = MediaInferenceManager::InferDeviceHDDL;
+                    }
+                    else if (0 == msdk_strncmp(MSDK_STRING("HDDL"), argv[i], msdk_strlen(MSDK_STRING("HDDL"))))
+                    {
+                        InputParams.InferDevType = MediaInferenceManager::InferDeviceGPU;
+                    }
+                    else
+                    {
+                        msdk_printf(MSDK_STRING("error: only HDDL and GPU are supported as target inference device\n"));
+                        return  MFX_ERR_UNSUPPORTED;
+                    }
+                    break;
+                case INFER_PAR_INTERVAL:
+                    VAL_CHECK(i+1 == argc, i, argv[i]);
+                    i++;
+                    if (MFX_ERR_NONE != msdk_opt_read(argv[i], InputParams.InferInterval))
+                    {
+                        PrintError(MSDK_STRING("Inference interval \"%s\" is invalid"), argv[i]);
+                        return MFX_ERR_UNSUPPORTED;
+                    }
+                    break;
+                case INFER_PAR_MAX_DETECT:
+                    VAL_CHECK(i+1 == argc, i, argv[i]);
+                    i++;
+                    if (MFX_ERR_NONE != msdk_opt_read(argv[i], InputParams.InferMaxObjNum))
+                    {
+                        PrintError(MSDK_STRING("Max detected objects number \"%s\" is invalid"), argv[i]);
+                        return MFX_ERR_UNSUPPORTED;
+                    }
+                    break;
+                case INFER_PAR_OFFLINE:
+                    break;
+                default:
+                    msdk_printf(MSDK_STRING("error: Inference option only supports fd(face detection) or hf(human pose), offline(not rendering results, device <target_device>, interval, and max_detect <number>)\n"));
+                    return  MFX_ERR_UNSUPPORTED;
             }
         } //Support inference in pipeline
         else if ( (0 == msdk_strncmp(MSDK_STRING("-rtsp_save"), argv[i], msdk_strlen(MSDK_STRING("-rtsp_save")))))
@@ -1491,6 +1563,13 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
             i++;
             SIZE_CHECK((msdk_strlen(argv[i])+1) > MSDK_ARRAY_LEN(InputParams.strDstFile));
             msdk_opt_read(argv[i], InputParams.strDstFile);
+            // while o::raw with output file name /dev/null, will drop the decode output frame
+            if ((0 == msdk_strncmp(MSDK_STRING("raw"), argv[i-1]+4, msdk_strlen("raw")))
+                && (0  == msdk_strncmp(MSDK_STRING("/dev/null"), InputParams.strDstFile, msdk_strlen(MSDK_STRING("/dev/null"))))) 
+            {
+                InputParams.bDropDecOutput = true;
+            }
+
             if (InputParams.eMode == Sink || InputParams.bIsMVC)
             {
                 switch(InputParams.EncodeId)
@@ -1849,6 +1928,16 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
                 return MFX_ERR_UNSUPPORTED;
             }
         }
+        else if (0 == msdk_strcmp(argv[i], MSDK_STRING("-frameskip")))
+        {
+            VAL_CHECK(i+1 == argc, i, argv[i]);
+            i++;
+            if (MFX_ERR_NONE != msdk_opt_read(argv[i], InputParams.nFrameSkip))
+            {
+                PrintError(MSDK_STRING(" \"%s\" nFrameSkip is invalid"), argv[i]);
+                return MFX_ERR_UNSUPPORTED;
+            }
+        }
         else if (0 == msdk_strcmp(argv[i], MSDK_STRING("-w")))
         {
             VAL_CHECK(i+1 == argc, i, argv[i]);
@@ -1989,6 +2078,20 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
             i++;
             SIZE_CHECK((msdk_strlen(argv[i])+1) > MSDK_ARRAY_LEN(InputParams.strDumpVppCompFile));
             msdk_opt_read(argv[i], InputParams.strDumpVppCompFile);
+        }
+        else if (0 == msdk_strcmp(argv[i], MSDK_STRING("-fake_sink")))
+        {
+            VAL_CHECK(i + 1 == argc, i, argv[i]);
+            i++;
+            /* NB! numSurf4Comp should be equal to Number of decoding session */
+            if (MFX_ERR_NONE != msdk_opt_read(argv[i], InputParams.numSurf4Comp))
+            {
+                PrintError(MSDK_STRING("-n \"%s\" is invalid"), argv[i]);
+                return MFX_ERR_UNSUPPORTED;
+            }
+            /* This is can init early */
+            if (InputParams.eModeExt == Native)
+                InputParams.eModeExt = FakeSink;
         }
 #if defined(LIBVA_X11_SUPPORT)
         else if (0 == msdk_strcmp(argv[i], MSDK_STRING("-rx11")))
@@ -2659,12 +2762,11 @@ mfxStatus CmdProcessor::VerifyAndCorrectInputParams(TranscodingSample::sInputPar
 
     // valid target usage range is: [MFX_TARGETUSAGE_BEST_QUALITY .. MFX_TARGETUSAGE_BEST_SPEED] (at the moment [1..7])
     // If target usage is kept unknown - presets manager will fill in proper value
-    if ((InputParams.nTargetUsage < MFX_TARGETUSAGE_UNKNOWN) ||
-        (InputParams.nTargetUsage > MFX_TARGETUSAGE_BEST_SPEED) )
+    if (InputParams.nTargetUsage > MFX_TARGETUSAGE_BEST_SPEED)
     {
-            PrintError(MSDK_STRING("Unsupported target usage"));
-            return MFX_ERR_UNSUPPORTED;
-        }
+        PrintError(MSDK_STRING("Unsupported target usage"));
+        return MFX_ERR_UNSUPPORTED;
+    }
 
     // Ignoring user-defined Async Depth for LA
     if (InputParams.nMaxSliceSize)
