@@ -8,7 +8,7 @@ then echo "Please make sure openvino has been installed and enviroment variables
     exit -1;
 fi
 
-./msdk_pre_install.py
+./msdk_pre_install_internal.py
 
 git_projects="MediaSDK media-driver libva"
 for i in $git_projects;
@@ -22,9 +22,8 @@ do
 done
 
 cd "MediaSDK"
-git reset --hard
-patch -p1 < ../patches/0001-MSDK-Enable-AVC-decode-SFC-RGB4.patch
-patch -p1 < ../patches/0002-sample_common-Add-support-to-multiple-displays.patch
+patch -N --no-backup-if-mismatch -p1 < ../patches/0001-MSDK-Enable-AVC-decode-SFC-RGB4.patch
+patch -N --no-backup-if-mismatch -p1 < ../patches/0002-sample_common-Add-support-to-multiple-displays.patch
 
 if [ $? != 0 ]; then
     echo "Apply patch failed!"
@@ -33,7 +32,7 @@ fi
 cd ../
 cp -rf video_e2e_sample  MediaSDK/samples/
 
-./msdk_pre_install.py -b cfl
+./msdk_pre_install_internal.py -b cfl
 
 if [[ -f MediaSDK/build/__bin/release/video_e2e_sample ]];
 then
@@ -63,7 +62,18 @@ then
         echo 'export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/mediasdk/lib"' >> ~/.bashrc
     fi
 
-    echo "VAAS sample application building has completed!"
+    if [[ -d $cl_cache_dir ]];
+    then
+        echo "cl_cache is enabled. \$cl_cache_dir : $cl_cache_dir"
+    else
+        echo "Add enabling cl_cache commands to ~\.bashrc"
+        set -x
+        mkdir -p ~/cl_cache
+        export cl_cache_dir=~/cl_cache
+        echo "mkdir -p ~/cl_cache" >> ~/.bashrc
+        echo "export cl_cache_dir=~/cl_cache" >> ~/.bashrc
+    fi
+    echo "Sample application building has completed!"
     echo "Please use ./bin/video_e2e_sample for testing"
 fi
 

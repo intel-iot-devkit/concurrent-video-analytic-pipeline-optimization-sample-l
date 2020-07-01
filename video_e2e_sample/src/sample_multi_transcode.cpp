@@ -386,6 +386,7 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
 
         std::unique_ptr<CSmplBitstreamWriter> writer(new CSmplBitstreamWriter());
         sts = writer->Init(m_InputParamsArray[i].strDstFile);
+        MSDK_CHECK_STATUS(sts, " writer->Init  failed");
 
         sts = m_pExtBSProcArray.back()->SetWriter(writer);
         MSDK_CHECK_STATUS(sts, "m_pExtBSProcArray.back()->SetWriter failed");
@@ -413,7 +414,8 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
         {
             /* N_to_1 mode */
             if ((VppComp == m_InputParamsArray[i].eModeExt) ||
-                (VppCompOnly == m_InputParamsArray[i].eModeExt))
+                (VppCompOnly == m_InputParamsArray[i].eModeExt) ||
+                (FakeSink == m_InputParamsArray[i].eModeExt))
             {
                 pBuffer = m_pBufferArray[m_pBufferArray.size() - 1];
                 msdk_printf(MSDK_STRING("source n to 1\n"));
@@ -1350,7 +1352,7 @@ int set_up_thread_argv(int argc, char *argv[], int par_file_num, char ***argv_po
             else
             {
                 //Completed processing par file options
-                found = true;
+                found = false;
                 thread_argv_idx++;
             }
         }

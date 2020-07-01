@@ -1,0 +1,4 @@
+-i::h264 /home/intel/Downloads/classroom.h264 -join -hw -async 4 -o::jpeg ./test_1_#.jpeg -w 1920 -h 1080 -ext_allocator -fps 30 -q 100 -frameskip 9
+-i::h264 /home/intel/Downloads/classroom.h264 -join -hw -async 4 -o::jpeg ./test_2_#.jpeg -w 720 -h 480 -ext_allocator -fps 30 -q 100 -frameskip 19
+-i::h264 /home/intel/Downloads/classroom.h264 -join -hw -async 4 -o::jpeg ./test_3_#.jpeg -w 960 -h 540 -ext_allocator -fps 30 -q 100 -frameskip 99
+-i::h264 /home/intel/Downloads/classroom.h264 -join -hw -async 4 -o::jpeg ./test_4_#.jpeg -w 480 -h 256 -ext_allocator -fps 30 -q 100 -frameskip 999

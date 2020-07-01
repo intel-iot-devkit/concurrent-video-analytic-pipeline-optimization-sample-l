@@ -37,7 +37,7 @@ VehicleDetect::VehicleDetect(bool enablePerformanceReport)
     return;
 }
 
-void VehicleDetect::Init(const std::string& detectorModelPath,
+int VehicleDetect::Init(const std::string& detectorModelPath,
         const std::string& vehicleAttribsModelPath,
         const std::string& targetDeviceName)
 {
@@ -56,16 +56,25 @@ void VehicleDetect::Init(const std::string& detectorModelPath,
     std::string binFileName = fileNameNoExt(detectorModelPath) + ".bin";
     mDetectorNetReader.ReadWeights(binFileName);
     mDetectorNetwork = mDetectorNetReader.getNetwork();
-    InferenceEngine::InputInfo::Ptr inputInfo = mDetectorNetwork.getInputsInfo().begin()->second;
-    inputInfo->setInputPrecision(Precision::U8);
+    auto inputIt = mDetectorNetwork.getInputsInfo().begin();
+    if (inputIt == mDetectorNetwork.getInputsInfo().end())
+    {
+        return -1;   
+    }
+    InferenceEngine::InputInfo::Ptr inputInfo = inputIt->second;
+    inputInfo->setPrecision(Precision::U8);
 
     InferenceEngine::OutputsDataMap outputInfo = mDetectorNetwork.getOutputsInfo();
     auto outputBlobsIt = outputInfo.begin();
+    if (outputBlobsIt == outputInfo.end())
+    {
+        return -1;
+    }
     mDetectorRoiBlobName = outputBlobsIt->first;
 
-    DataPtr& output = outputInfo.begin()->second;
+    DataPtr& output = outputBlobsIt->second;
     const SizeVector outputDims = output->getTensorDesc().getDims();
-    mDetectorOutputName = outputInfo.begin()->first;
+    mDetectorOutputName = outputBlobsIt->first;
     mDetectorMaxProposalCount = outputDims[2];
     mDetectorObjectSize = outputDims[3];
     output->setPrecision(Precision::FP32);
@@ -80,17 +89,32 @@ void VehicleDetect::Init(const std::string& detectorModelPath,
     mVANetReader.ReadWeights(binFileName);
     mVANetwork = mVANetReader.getNetwork();
     mVANetwork.setBatchSize(1);
-    inputInfo = mVANetwork.getInputsInfo().begin()->second;
-    inputInfo->setInputPrecision(Precision::U8);
+    auto VAInputP = mVANetwork.getInputsInfo().begin();
+    if (VAInputP == mVANetwork.getInputsInfo().end())
+    {
+        return -1;
+    }
+    inputInfo = VAInputP->second;
+    inputInfo->setPrecision(Precision::U8);
     inputInfo->getInputData()->setLayout(Layout::NCHW);
 
     outputInfo = mVANetwork.getOutputsInfo();
     outputBlobsIt = outputInfo.begin();
-    mVAOutputNameForColor = (outputBlobsIt++)->second->name;  // color is the first output
-    mVAOutputNameForType = (outputBlobsIt++)->second->name;  // type is the second output
+    if (outputBlobsIt == outputInfo.end())
+    {
+        return -1;
+    }
+
+    mVAOutputNameForColor = (outputBlobsIt++)->second->getName();  // color is the first output
+    if (outputBlobsIt == outputInfo.end())
+    {
+        return -1;
+    }
+    mVAOutputNameForType = (outputBlobsIt)->second->getName();  // type is the second output
 
     mVAExecutableNetwork = mPlugin.LoadNetwork(mVANetwork, {});
     mVARequest = mVAExecutableNetwork.CreateInferRequest();
+    return 0;
 }
 
 const std::string VehicleDetect::mVAColors[] =
@@ -108,13 +132,24 @@ void VehicleDetect::SetSrcImageSize(int width, int height)
     mSrcImageSize.width = width;
 }
 
-void VehicleDetect::Detect(const cv::Mat& image, std::vector<VehicleDetectResult>& results)
+void VehicleDetect::Detect(const cv::Mat& image, std::vector<VehicleDetectResult>& results, int maxObjNum)
 {
-    InferenceEngine::Blob::Ptr input = mDetectorRequest.GetBlob(mDetectorNetwork.getInputsInfo().begin()->first);
+    auto inputIt = mDetectorNetwork.getInputsInfo().begin();
+    if (inputIt == mDetectorNetwork.getInputsInfo().end())
+    {
+        return;
+    }
+  
+    InferenceEngine::Blob::Ptr input = mDetectorRequest.GetBlob(inputIt->first);
     matU8ToBlob<uint8_t>(image, input);
     mDetectorRequest.Infer();
 
     const float *detections = mDetectorRequest.GetBlob(mDetectorOutputName)->buffer().as<float *>();
+    if (maxObjNum < 0 || maxObjNum > mDetectorMaxProposalCount)
+    {
+        maxObjNum = mDetectorMaxProposalCount; 
+    }
+
     for (int i = 0; i < mDetectorMaxProposalCount; i++)
     {
         float image_id = detections[i * mDetectorObjectSize + 0];  // in case of batch
@@ -141,9 +176,17 @@ void VehicleDetect::Detect(const cv::Mat& image, std::vector<VehicleDetectResult
             << (r.confidence  ) << std::endl; */
 
         results.push_back(r);
+        if (results.size() >= (unsigned int)maxObjNum)
+        {
+            break;
+        }
     }
-
-    InferenceEngine::Blob::Ptr VAInput = mVARequest.GetBlob(mVANetwork.getInputsInfo().begin()->first);
+    inputIt = mVANetwork.getInputsInfo().begin();
+    if (inputIt == mVANetwork.getInputsInfo().end())
+    {
+        return;
+    }
+    InferenceEngine::Blob::Ptr VAInput = mVARequest.GetBlob(inputIt->first);
     for (unsigned int i = 0; i < results.size(); i++)
     {
         //image's size can be different from source image

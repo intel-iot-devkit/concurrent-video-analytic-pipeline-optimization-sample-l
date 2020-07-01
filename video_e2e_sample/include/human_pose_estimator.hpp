@@ -39,7 +39,7 @@ public:
     HumanPoseEstimator(const std::string& modelPath,
                        const std::string& targetDeviceName,
                        bool enablePerformanceReport = false);
-    void Init();
+    int Init();
     std::vector<HumanPose> estimate(const cv::Mat& image);
     ~HumanPoseEstimator();
 

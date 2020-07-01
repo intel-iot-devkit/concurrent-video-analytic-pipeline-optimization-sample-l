@@ -1,0 +1,21 @@
+-i::h265 rtsp://172.16.181.169:1554/simu0006  -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0007 -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 480 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0008 -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 960 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0009 -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 1440 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+
+-i::h265 rtsp://172.16.181.169:1554/simu0007  -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 0 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0008  -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 480 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0009  -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 960 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0006 -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 1440 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+
+-i::h265 rtsp://172.16.181.169:1554/simu0008  -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 0 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0009  -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 480 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0006 -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 960 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0007 -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 1440 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+
+-i::h265 rtsp://172.16.181.169:1554/simu0009 -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 0 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0006 -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 480 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0007 -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 960 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+-i::h265 rtsp://172.16.181.169:1554/simu0006 -join -hw  -async 4 -o::sink -dc::rgb4 -vpp_comp_dst_x 1440 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model 
+
+-vpp_comp_only 16 -w 1920 -h 1080 -async 4 -threads 2 -join -hw  -i::source -ext_allocator  -ec::rgb4 -rdrm-DisplayPort

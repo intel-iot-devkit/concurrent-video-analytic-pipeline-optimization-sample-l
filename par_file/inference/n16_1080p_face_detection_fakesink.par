@@ -1,0 +1,21 @@
+-i::h264 /home/work/video/classroom.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/2.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/3.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/4.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+
+-i::h264 /home/work/video/4.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/classroom.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/2.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/3.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+
+-i::h264 /home/work/video/2.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/3.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/4.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/classroom.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+
+-i::h264 /home/work/video/3.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/4.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/classroom.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+-i::h264 /home/work/video/2.h264 -join -hw -async 4 -dec_postproc  -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model
+
+-fake_sink 16 -async 4 -join -i::source -ext_allocator -o::h264 /tmp/fake_file.h264 

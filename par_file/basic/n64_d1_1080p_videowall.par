@@ -1,0 +1,73 @@
+-i::h264 /home/work/video/vm_4.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_1.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 240 -vpp_comp_dst_y 0 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_3.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 0 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_2.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 720 -vpp_comp_dst_y 0 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_4.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 0 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_1.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1200 -vpp_comp_dst_y 0 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_3.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 0 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_2.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1680 -vpp_comp_dst_y 0 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+
+-i::h264 /home/work/video/vm_1.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 135 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_2.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 240 -vpp_comp_dst_y 135 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_1.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 135 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_4.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 720 -vpp_comp_dst_y 135 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_4.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 135 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_2.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1200 -vpp_comp_dst_y 135 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_3.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 135 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_3.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1680 -vpp_comp_dst_y 135 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+
+-i::h264 /home/work/video/vm_4.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 270 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_2.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 240 -vpp_comp_dst_y 270 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_3.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 270 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_4.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 720 -vpp_comp_dst_y 270 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_3.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 270 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_1.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1200 -vpp_comp_dst_y 270 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_2.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 270 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_1.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1680 -vpp_comp_dst_y 270 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+
+-i::h264 /home/work/video/vm_3.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 405 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_2.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 240 -vpp_comp_dst_y 405 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_2.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 405 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_4.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 720 -vpp_comp_dst_y 405 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_1.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 405 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_3.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1200 -vpp_comp_dst_y 405 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_1.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 405 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_4.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1680 -vpp_comp_dst_y 405 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+
+-i::h264 /home/work/video/vm_8.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 540 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_8.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 240 -vpp_comp_dst_y 540 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_7.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 540 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_6.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 720 -vpp_comp_dst_y 540 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_7.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 540 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_5.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1200 -vpp_comp_dst_y 540 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_5.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 540 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_6.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1680 -vpp_comp_dst_y 540 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+
+-i::h264 /home/work/video/vm_5.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 675 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_8.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 240 -vpp_comp_dst_y 675 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_7.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 675 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_5.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 720 -vpp_comp_dst_y 675 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_8.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 675 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_6.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1200 -vpp_comp_dst_y 675 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_6.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 675 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_7.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1680 -vpp_comp_dst_y 675 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+
+-i::h264 /home/work/video/vm_6.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 810 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_5.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 240 -vpp_comp_dst_y 810 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_5.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 810 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_8.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 720 -vpp_comp_dst_y 810 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_7.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 810 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_6.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1200 -vpp_comp_dst_y 810 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_7.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 810 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_8.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1680 -vpp_comp_dst_y 810 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+
+-i::h264 /home/work/video/vm_7.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 945 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_8.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 240 -vpp_comp_dst_y 945 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_7.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 945 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_6.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 720 -vpp_comp_dst_y 945 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_5.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 945 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_6.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1200 -vpp_comp_dst_y 945 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_7.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 945 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+-i::h264 /home/work/video/vm_8.h264 -join -hw  -async 1 -o::sink -vpp_comp_dst_x 1680 -vpp_comp_dst_y 945 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
+
+-vpp_comp_only 64 -w 1920 -h 1080 -async 1 -threads 2 -join -hw -i::source -ext_allocator -ec::rgb4 -rdrm-DisplayPort -fps 30

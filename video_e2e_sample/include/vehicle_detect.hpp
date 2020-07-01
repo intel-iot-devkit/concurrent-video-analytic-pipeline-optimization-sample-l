@@ -37,10 +37,10 @@ class VehicleDetect {
 public:
 
     VehicleDetect(bool mEnablePerformanceReport = false);
-    void Init(const std::string& detectorModelPath,
+    int Init(const std::string& detectorModelPath,
             const std::string& VAModelPath,
             const std::string& targetDeviceName);
-    void Detect(const cv::Mat& image, std::vector<VehicleDetectResult>& results);
+    void Detect(const cv::Mat& image, std::vector<VehicleDetectResult>& results, int maxObjNum);
     void SetSrcImageSize(int width, int height);
     void RenderVDResults(std::vector<VehicleDetectResult>& results, cv::Mat& image);
     ~VehicleDetect();
