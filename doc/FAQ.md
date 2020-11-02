@@ -46,3 +46,7 @@ face-detection-retail-0004, human-pose-estimation-0001, vehicle-attributes-recog
 
 ## Can I use other OpenVINO version rather than 2020.3 ?
 Yes, but you have to modify some code due to interfaces changing. And also you need to download the IR files and copy them to ./model manually. Please refer to script/download_and_copy_models.sh for how to download the IR files.
+
+## When run 4 channel decode plus inference and display on APL, the CPU occupy ratio is very high and fps is low
+Please refer to par file par_file/inference/n4_face_detection_rgbp.par. It uses option "-dc::rgbp" that make the SFC outputs RGB4 for display and VPP outputs RGBP for inference input. Then there is no need to use OpenCV for resizing and color conversion which consume much CPU time on APL.
+Note, "-dc::rgbp" only works with "-infer::fd". Will support more inference types in the future.

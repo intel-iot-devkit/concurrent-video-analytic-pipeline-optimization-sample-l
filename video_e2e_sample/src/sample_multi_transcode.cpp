@@ -213,6 +213,8 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
     }
 #endif
 #elif defined(LIBVA_X11_SUPPORT) || defined(LIBVA_DRM_SUPPORT) || defined(ANDROID)
+
+    VADisplay vaDpy=NULL;
     if (m_eDevType == MFX_HANDLE_VA_DISPLAY)
     {
         mfxI32  libvaBackend = 0;
@@ -238,12 +240,14 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
                 CVAAPIDeviceDRM* drmdev = dynamic_cast<CVAAPIDeviceDRM*>(m_hwdev.get());
                 pVAAPIParams->m_export_mode = vaapiAllocatorParams::CUSTOM_FLINK;
                 pVAAPIParams->m_exporter = dynamic_cast<vaapiAllocatorParams::Exporter*>(drmdev->getRenderer());
-
+                sts = m_hwdev->GetHandle(MFX_HANDLE_VA_DISPLAY, (mfxHDL *)&vaDpy);
             }
             else if (params.libvaBackend == MFX_LIBVA_X11)
             {
                 pVAAPIParams->m_export_mode = vaapiAllocatorParams::PRIME;
+                sts = m_hwdev->GetHandle(MFX_HANDLE_VA_DISPLAY, (mfxHDL *)&vaDpy);
             }
+
 #endif
 #if defined(LIBVA_WAYLAND_SUPPORT)
             else if (params.libvaBackend == MFX_LIBVA_WAYLAND) {
@@ -279,6 +283,9 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
                 return MFX_ERR_DEVICE_FAILED;
             }
             sts = m_hwdev->Init(NULL, 0, MSDKAdapter::GetNumber(0));
+
+            pVAAPIParams->m_export_mode = vaapiAllocatorParams::PRIME;
+            sts = m_hwdev->GetHandle(MFX_HANDLE_VA_DISPLAY, (mfxHDL *)&vaDpy);
         }
         if (libvaBackend != MFX_LIBVA_WAYLAND) {
         MSDK_CHECK_STATUS(sts, "m_hwdev->Init failed");
@@ -332,6 +339,7 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
         m_pExtBSProcArray.push_back(new FileBitstreamProcessor);
 
         pThreadPipeline->pPipeline.reset(CreatePipeline());
+        pThreadPipeline->pPipeline->SetVADisplayHandle(vaDpy);
 
 #if (defined(_WIN32) || defined(_WIN64)) && (MFX_VERSION >= 1031)
         pThreadPipeline->pPipeline->SetPrefferiGfx(m_InputParamsArray[i].bPrefferiGfx);
@@ -385,8 +393,12 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
         }
 
         std::unique_ptr<CSmplBitstreamWriter> writer(new CSmplBitstreamWriter());
-        sts = writer->Init(m_InputParamsArray[i].strDstFile);
-        MSDK_CHECK_STATUS(sts, " writer->Init  failed");
+
+        if (m_InputParamsArray[i].eModeExt != FakeSink)
+        {
+            sts = writer->Init(m_InputParamsArray[i].strDstFile);
+            MSDK_CHECK_STATUS(sts, " writer->Init  failed");
+        }
 
         sts = m_pExtBSProcArray.back()->SetWriter(writer);
         MSDK_CHECK_STATUS(sts, "m_pExtBSProcArray.back()->SetWriter failed");

@@ -24,6 +24,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #include <inference_engine.hpp>
 #include <opencv2/core/core.hpp>
+#include "network_factory.hpp"
 
 struct VehicleDetectResult {
     int label;
@@ -46,28 +47,25 @@ public:
     ~VehicleDetect();
 
 private:
-
-    static std::mutex mInitLock;
+    VehicleDetect(VehicleDetect const&);
+    VehicleDetect& operator=(VehicleDetect const&);
     float mDetectThreshold;
-    InferenceEngine::InferencePlugin mPlugin;
-    InferenceEngine::CNNNetwork mDetectorNetwork;
-    InferenceEngine::ExecutableNetwork mVDExecutableNetwork;
-    InferenceEngine::InferRequest mDetectorRequest;
-    InferenceEngine::CNNNetReader mDetectorNetReader;
+    InferenceEngine::InferRequest mVDDetectorRequest;
     int mDetectorMaxProposalCount;
     int mDetectorObjectSize;
     std::string mDetectorRoiBlobName;
     std::string mDetectorOutputName;
     bool mEnablePerformanceReport;
     cv::Size mSrcImageSize;
+    std::string mVDDetectorInputName;
+    NetworkInfo *mVDNetworkInfo;
 
-    InferenceEngine::CNNNetwork mVANetwork;
-    InferenceEngine::ExecutableNetwork mVAExecutableNetwork;
     InferenceEngine::InferRequest mVARequest;
-    InferenceEngine::CNNNetReader mVANetReader;
     std::string mVAOutputNameForColor;  // color is the first output
     std::string mVAOutputNameForType;  // type is the second output
     static const std::string mVAColors[];
     static const std::string mVATypes[];
+    NetworkInfo *mVANetworkInfo;
+    std::string mVADetectorInputName;
 };
 

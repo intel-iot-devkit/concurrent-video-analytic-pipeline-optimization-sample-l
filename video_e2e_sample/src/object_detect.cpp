@@ -25,65 +25,85 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <samples/ocv_common.hpp>
 #include <samples/common.hpp>
 
+#include <cldnn/cldnn_config.hpp>
+
 #include "object_detect.hpp"
+#include "sample_defs.h"
 
 using namespace InferenceEngine;
 using namespace cv;
 
+
 ObjectDetect::ObjectDetect(bool enablePerformanceReport)
     :mDetectThreshold(0.5f),
-    mEnablePerformanceReport(enablePerformanceReport)
+    mRemoteBlob(false),
+    mNetworkInfo(nullptr),
+    mEnablePerformanceReport(enablePerformanceReport),
+    mImgData(nullptr)
 {
     return;
 }
 
 int ObjectDetect::Init(const std::string& detectorModelPath,
-        const std::string& targetDeviceName)
+        const std::string& targetDeviceName, bool remoteBlob, VADisplay vaDpy)
 {
     static std::mutex initLock;
     std::lock_guard<std::mutex> lock(initLock);
-    mPlugin = InferenceEngine::PluginDispatcher()
-            .getPluginByDevice(targetDeviceName);
-    if (mEnablePerformanceReport)
+
+    NetworkOptions opt;
+    if (remoteBlob)
     {
-        mPlugin.SetConfig({{InferenceEngine::PluginConfigParams::KEY_PERF_COUNT,
-                           InferenceEngine::PluginConfigParams::YES}});
+        mRemoteBlob = remoteBlob;
+        opt.enableRemoteBlob = remoteBlob;
+        opt.vaDpy = vaDpy;
+    }
+    mNetworkInfo = NetworkFactory::GetNetwork(detectorModelPath, targetDeviceName, opt);
+
+    if (!mNetworkInfo)
+    {
+        std::cout<<"NetworkFactory::GetNetwork("<<detectorModelPath<<","<<targetDeviceName<<") failed!"<<std::endl;
+        return -1;
     }
 
-    //Load Vehicle Detector Network
-    mDetectorNetReader.ReadNetwork(detectorModelPath);
-    std::string binFileName = fileNameNoExt(detectorModelPath) + ".bin";
-    mDetectorNetReader.ReadWeights(binFileName);
-    mDetectorNetwork = mDetectorNetReader.getNetwork();
-    mDetectorNetwork.setBatchSize(1);
+    std::cout<<"Loading network "<<detectorModelPath<<" on device "<<targetDeviceName<<" is done."<<std::endl;
+    InferenceEngine::CNNNetwork &detectorNetwork = mNetworkInfo->mNetwork;
 
-    auto inputP = mDetectorNetwork.getInputsInfo().begin();
-    if (inputP == mDetectorNetwork.getInputsInfo().end())
+    auto inputP = detectorNetwork.getInputsInfo().begin();
+    if (inputP == detectorNetwork.getInputsInfo().end())
     {
-       return -1;
+        return -1;
     } 
     InferenceEngine::InputInfo::Ptr inputInfo = inputP->second;
-    inputInfo->setPrecision(Precision::U8);
-    inputInfo->getInputData()->setLayout(Layout::NCHW);
+    mInputName = inputInfo->name();
+    InferenceEngine::SizeVector blobSize = inputInfo->getTensorDesc().getDims();
 
-    InferenceEngine::OutputsDataMap outputInfo = mDetectorNetwork.getOutputsInfo();
+    /*Both MobileNet SSD and face detectin mobile input are 300x300 */
+    mInputW = blobSize[3];
+    mInputH = blobSize[2];
+
+    /* All supported models, input size is between 300x300 and 1920x1080 */
+    if (mInputH < 300 || mInputH > 1080 || mInputW < 300 || mInputW > 1920)
+    {
+        return -1;
+    }
+
+    InferenceEngine::OutputsDataMap outputInfo = detectorNetwork.getOutputsInfo();
     auto outputBlobsIt = outputInfo.begin();
     if (outputBlobsIt == outputInfo.end())
     {
         return -1;
     }
     mDetectorRoiBlobName = outputBlobsIt->first;
-
     DataPtr& output = outputInfo.begin()->second;
+
     const SizeVector outputDims = output->getTensorDesc().getDims();
     mDetectorOutputName = outputInfo.begin()->first;
+
     mDetectorMaxProposalCount = outputDims[2];
     mDetectorObjectSize = outputDims[3];
-    output->setPrecision(Precision::FP32);
-    output->setLayout(Layout::NCHW);
+   
+    mDetectorRequest = mNetworkInfo->CreateNewInferRequest();
 
-    mExecutableNetwork = mPlugin.LoadNetwork(mDetectorNetwork, {});
-    mDetectorRequest = mExecutableNetwork.CreateInferRequest();
     return 0;
 }
 
@@ -95,22 +115,104 @@ void ObjectDetect::SetSrcImageSize(int width, int height)
 
 void ObjectDetect::Detect(const cv::Mat& image, std::vector<ObjectDetectResult>& results)
 {
-    auto inputIt = mDetectorNetwork.getInputsInfo().begin();
-    if (inputIt == mDetectorNetwork.getInputsInfo().end())
-    {
-        return;
-    }
-    InferenceEngine::Blob::Ptr input = mDetectorRequest.GetBlob(inputIt->first);
+    InferenceEngine::Blob::Ptr input = mDetectorRequest.GetBlob(mInputName);
     matU8ToBlob<uint8_t>(image, input);
     mDetectorRequest.Infer();
 
     const float *detections = mDetectorRequest.GetBlob(mDetectorOutputName)->buffer().as<PrecisionTrait<Precision::FP32>::value_type*>();
+
+    CopyDetectResults(detections, results);
+    return ;
+}
+
+int ObjectDetect::CopyImageData(unsigned char *dst, unsigned char *src, unsigned int width, unsigned int height, unsigned int pitch)
+{
+    for (unsigned int i = 0; i < height; i++)
+    {
+        memcpy(dst, src, width);
+        dst += width;
+        src += pitch;
+    }
+    return 0;
+}
+
+int ObjectDetect::Detect(mfxFrameData *pData, mfxFrameData *pData_dec, std::vector<ObjectDetectResult>& results)
+{
+    int alignedH = MSDK_ALIGN16(mInputH); 
+    int alignedW = MSDK_ALIGN32(mInputW); 
+
+    /*Memory to store the input of inference */
+    if (!mImgData)
+    {
+        mImgData = (unsigned char *)malloc(mInputW * mInputH * 3);
+        if (!mImgData)
+        {
+            return -1;
+        }
+    }
+
+    CopyImageData(mImgData, pData->B, mInputW, mInputH, alignedW);
+    CopyImageData(mImgData +  mInputW * mInputH, pData->G, mInputW, mInputH, alignedW);
+    CopyImageData(mImgData +  mInputW * mInputH * 2, pData->R, mInputW, mInputH, alignedW);
+    cv::Mat frame(mInputW, mInputH, CV_8UC3,  (char *)mImgData);
+    InferenceEngine::TensorDesc tDesc(InferenceEngine::Precision::U8,
+                                      {1, 3, mInputH, mInputW},
+                                      InferenceEngine::Layout::NHWC);
+
+    auto blob = InferenceEngine::make_shared_blob<uint8_t>(tDesc, frame.data);
+    mDetectorRequest.SetBlob(mInputName, blob);
+    mDetectorRequest.Infer();
+
+    const float *detections = mDetectorRequest.GetBlob(mDetectorOutputName)->buffer().as<PrecisionTrait<Precision::FP32>::value_type*>();
+    CopyDetectResults(detections, results);
+
+    return 0;
+}
+
+
+void ObjectDetect::Detect(VASurfaceID va_surface, std::vector<ObjectDetectResult>& results)
+{
+    /*
+    auto inputIt = mDetectorNetwork.getInputsInfo().begin();
+    if (inputIt == mDetectorNetwork.getInputsInfo().end())
+    {
+        return;
+    }*/
+    //mInputW x mInputH is the resolution of va_surface which must be equal to input of inference
+    if (!mNetworkInfo)
+    {
+        return;
+    }
+    auto nv12_blob = gpu::make_shared_blob_nv12(mInputW,
+                                                mInputH,
+                                                mNetworkInfo->mSharedVAContext,
+                                                va_surface
+                                                );
+    mDetectorRequest.SetBlob(mInputName, nv12_blob);
+
+    mDetectorRequest.Infer();
+
+    const float *detections = mDetectorRequest.GetBlob(mDetectorOutputName)->buffer().as<PrecisionTrait<Precision::FP32>::value_type*>();
+    CopyDetectResults(detections, results);
+    return ;
+}
+
+void ObjectDetect::CopyDetectResults(const float *detections, std::vector<ObjectDetectResult>& results)
+{
     for (int i = 0; i < mDetectorMaxProposalCount; i++)
     {
         float image_id = detections[i * mDetectorObjectSize + 0];  // in case of batch
         ObjectDetectResult r;
         r.label = static_cast<int>(detections[i * mDetectorObjectSize + 1]);
+#ifdef USE_MOBILENET_SSD
+        //Only saved the result of person
+        if (r.label != 15)
+        {
+            continue;
+        }
+#endif
         r.confidence = detections[i * mDetectorObjectSize + 2];
+
         if (r.confidence <= mDetectThreshold)
         {
             continue;
@@ -132,29 +234,46 @@ void ObjectDetect::Detect(const cv::Mat& image, std::vector<ObjectDetectResult>&
 
         results.push_back(r);
     }
-    return ;
+
 }
 
-
-void ObjectDetect::RenderResults(std::vector<ObjectDetectResult>& results, cv::Mat& image)
+void ObjectDetect::RenderResults(std::vector<ObjectDetectResult>& results, cv::Mat& image, bool isGrey)
 {
     char confidence[8];
     for (unsigned int i = 0; i < results.size(); i++) {
         cv::Rect &location = results[i].location;
-        rectangle(image, results[i].location, Scalar(0, 230, 0), 1, 4);
 
-        /* background color */
-        rectangle(image, Point(location.x - 1, location.y - 8), Point(location.x + location.width, location.y - 1), Scalar(0, 230, 0), -1, LINE_8, 0);
-        snprintf(confidence, 8, "%.2f", results[i].confidence);
+        if(isGrey)
+        {
+            rectangle(image, results[i].location, Scalar(230, 230, 230), 1, 4);
+        }
+        else
+        {
+            rectangle(image, results[i].location, Scalar(0, 230, 0), 1, 4);
 
-        /* text */
-        putText(image, confidence, Point(location.x + 1, location.y - 1), FONT_HERSHEY_TRIPLEX, .3, Scalar(70,70,70));
+            /* background color */
+            rectangle(image, Point(location.x - 1, location.y - 8), Point(location.x + location.width, location.y - 1), Scalar(0, 230, 0), -1, LINE_8, 0);
+            snprintf(confidence, 8, "%.2f", results[i].confidence);
+
+            /* text */
+            putText(image, confidence, Point(location.x + 1, location.y - 1), FONT_HERSHEY_TRIPLEX, .3, Scalar(70,70,70));
+        }
     }
     return;
 }
 
+void ObjectDetect::GetInputSize(int &width, int &height)
+{
+    width = mInputW;
+    height = mInputH;
+}
+
 ObjectDetect::~ObjectDetect()
 {
+    free(mImgData);
+    mImgData = nullptr;
+
+    NetworkFactory::PutNetwork(mNetworkInfo);
     if (mEnablePerformanceReport)
     {
         std::cout << "Performance counts for object detection:" << std::endl << std::endl;

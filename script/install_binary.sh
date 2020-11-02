@@ -32,22 +32,22 @@ mkdir -p /usr/include/va
 /usr/bin/install -c -m 644 va_dri2.h va_dricommon.h /usr/include/va
 /usr/bin/install -c -m 644 va_backend_glx.h va_glx.h /usr/include/va
 mkdir -p /usr/lib/x86_64-linux-gnu
-/usr/bin/install -c libva.so.2.700.0 /usr/lib/x86_64-linux-gnu/libva.so.2.700.0
+/usr/bin/install -c libva.so.2.900.0 /usr/lib/x86_64-linux-gnu/libva.so.2.900.0
 /usr/bin/install -c libva.lai /usr/lib/x86_64-linux-gnu/libva.la
-/usr/bin/install -c libva-drm.so.2.700.0T /usr/lib/x86_64-linux-gnu/libva-drm.so.2.700.0
+/usr/bin/install -c libva-drm.so.2.900.0T /usr/lib/x86_64-linux-gnu/libva-drm.so.2.900.0
 /usr/bin/install -c libva-drm.lai /usr/lib/x86_64-linux-gnu/libva-drm.la
 /usr/bin/install -c libva-x11.lai /usr/lib/x86_64-linux-gnu/libva-x11.la
-/usr/bin/install -c libva-glx.so.2.700.0T /usr/lib/x86_64-linux-gnu/libva-glx.so.2.700.0
-/usr/bin/install -c libva-x11.so.2.700.0T /usr/lib/x86_64-linux-gnu/libva-x11.so.2.700.0
+/usr/bin/install -c libva-glx.so.2.900.0T /usr/lib/x86_64-linux-gnu/libva-glx.so.2.900.0
+/usr/bin/install -c libva-x11.so.2.900.0T /usr/lib/x86_64-linux-gnu/libva-x11.so.2.900.0
 /usr/bin/install -c libva-glx.lai /usr/lib/x86_64-linux-gnu/libva-glx.la
-cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva.so.2.700.0 libva.so.2 || { rm -f libva.so.2 && ln -s libva.so.2.700.0 libva.so.2; }; }
-cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva.so.2.700.0 libva.so || { rm -f libva.so && ln -s libva.so.2.700.0 libva.so; }; }
-cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-drm.so.2.700.0 libva-drm.so.2 || { rm -f libva-drm.so.2 && ln -s libva-drm.so.2.700.0 libva-drm.so.2; }; }
-cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-drm.so.2.700.0 libva-drm.so || { rm -f libva-drm.so && ln -s libva-drm.so.2.700.0 libva-drm.so; }; }
-cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-x11.so.2.700.0 libva-x11.so.2 || { rm -f libva-x11.so.2 && ln -s libva-x11.so.2.700.0 libva-x11.so.2; }; }
-cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-x11.so.2.700.0 libva-x11.so || { rm -f libva-x11.so && ln -s libva-x11.so.2.700.0 libva-x11.so; }; }
-cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-glx.so.2.700.0 libva-glx.so.2 || { rm -f libva-glx.so.2 && ln -s libva-glx.so.2.700.0 libva-glx.so.2; }; }
-cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-glx.so.2.700.0 libva-glx.so || { rm -f libva-glx.so && ln -s libva-glx.so.2.700.0 libva-glx.so; }; }
+cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva.so.2.900.0 libva.so.2 || { rm -f libva.so.2 && ln -s libva.so.2.900.0 libva.so.2; }; }
+cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva.so.2.900.0 libva.so || { rm -f libva.so && ln -s libva.so.2.900.0 libva.so; }; }
+cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-drm.so.2.900.0 libva-drm.so.2 || { rm -f libva-drm.so.2 && ln -s libva-drm.so.2.900.0 libva-drm.so.2; }; }
+cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-drm.so.2.900.0 libva-drm.so || { rm -f libva-drm.so && ln -s libva-drm.so.2.900.0 libva-drm.so; }; }
+cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-x11.so.2.900.0 libva-x11.so.2 || { rm -f libva-x11.so.2 && ln -s libva-x11.so.2.900.0 libva-x11.so.2; }; }
+cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-x11.so.2.900.0 libva-x11.so || { rm -f libva-x11.so && ln -s libva-x11.so.2.900.0 libva-x11.so; }; }
+cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-glx.so.2.900.0 libva-glx.so.2 || { rm -f libva-glx.so.2 && ln -s libva-glx.so.2.900.0 libva-glx.so.2; }; }
+cd /usr/lib/x86_64-linux-gnu && { ln -s -f libva-glx.so.2.900.0 libva-glx.so || { rm -f libva-glx.so && ln -s libva-glx.so.2.900.0 libva-glx.so; }; }
 mkdir -p /usr/include/va
 cd $root_path/libva/
 /usr/bin/install -c -m 644  va.h va_backend.h va_backend_vpp.h va_compat.h va_dec_av1.h va_dec_hevc.h va_dec_jpeg.h va_dec_vp8.h va_dec_vp9.h va_drmcommon.h va_egl.h va_enc_hevc.h va_enc_h264.h va_enc_jpeg.h va_enc_vp8.h va_fei.h va_fei_h264.h va_enc_mpeg2.h va_fei_hevc.h va_enc_vp9.h va_str.h va_tpi.h va_version.h va_vpp.h va_x11.h /usr/include/va
@@ -74,7 +74,7 @@ mkdir -p /opt/intel/mediasdk/lib/mfx
 cp -rf include/* /opt/intel/mediasdk/include/
 cp -rf lib/* /opt/intel/mediasdk/lib/
 cp -rf share/* /opt/intel/mediasdk/share
-ln -n /opt/intel/mediasdk/lib/libmfxhw64.so.1.32 /opt/intel/mediasdk/lib/libmfxhw64.so || { rm -f /opt/intel/mediasdk/lib/libmfxhw64.so && ln -n /opt/intel/mediasdk/lib/libmfxhw64.so.1.32 /opt/intel/mediasdk/lib/libmfxhw64.so; }
+ln -n /opt/intel/mediasdk/lib/libmfxhw64.so.1.34 /opt/intel/mediasdk/lib/libmfxhw64.so || { rm -f /opt/intel/mediasdk/lib/libmfxhw64.so && ln -n /opt/intel/mediasdk/lib/libmfxhw64.so.1.34 /opt/intel/mediasdk/lib/libmfxhw64.so; }
 set +x
 
 echo "Add enviroment setting command line to ~/.bashrc"
@@ -96,21 +96,21 @@ set +x
 
 fi
 
-if [[ $LD_LIBRARY_PATH != *"/opt/intel/mediasdk/lib"* ]]
+if [[ $LD_LIBRARY_PATH != *"/opt/intel/mediasdk/lib/"* ]]
 then
-    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/mediasdk/lib"
-    echo 'export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/mediasdk/lib"' >> ~/.bashrc
+    export LD_LIBRARY_PATH="/opt/intel/mediasdk/lib/:$LD_LIBRARY_PATH"
+    echo 'export LD_LIBRARY_PATH="/opt/intel/mediasdk/lib/:$LD_LIBRARY_PATH"' >> ~/.bashrc
 fi
 
-openvino_env_set=`grep "intel/openvino/bin/setupvars.sh" ~/.bashrc -c`
+openvino_env_set=`grep "intel/openvino_2021/bin/setupvars.sh" ~/.bashrc -c`
 if (( openvino_env_set == 0 )) 
 then
     if [ -f ~/intel/openvino/bin/setupvars.sh ]
     then
-        echo "source ~/intel/openvino/bin/setupvars.sh" >> ~/.bashrc
+        echo "source ~/intel/openvino_2021/bin/setupvars.sh" >> ~/.bashrc
     elif [ -f /opt/intel/openvino/bin/setupvars.sh ]
     then
-        echo "source /opt/intel/openvino/bin/setupvars.sh" >> ~/.bashrc
+        echo "source /opt/intel/openvino_2021/bin/setupvars.sh" >> ~/.bashrc
     fi
 fi    
 

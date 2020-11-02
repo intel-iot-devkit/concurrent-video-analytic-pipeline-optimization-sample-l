@@ -14,8 +14,8 @@ Steps:
 
 ## Requirements
 
-Hardware Requirements: Coffee Lake or Whiskey Lake
-Software Requirements: Ubuntu 18.04, MediaSDK 19.4.0 and OpenVINO 2019 R3 
+Hardware Requirements: Coffee Lake, Sky Lake, Kaby Lake, Whiskey Lake or Tiger Lake
+Software Requirements: Ubuntu 18.04, MediaSDK 20.3.0 and OpenVINO 2021.1 
 
 ## How to test your changes
 
@@ -24,11 +24,13 @@ Software Requirements: Ubuntu 18.04, MediaSDK 19.4.0 and OpenVINO 2019 R3
 ```sh
 ./build_and_install.sh
 ```
-Apply the changes to MediaSDK/samples/video_e2e_sample/. Then build video_e2e_sample:
+Apply the changes to video_e2e_sample. Then build video_e2e_sample:
 ```sh
-cp msdk_build.sh MediaSDK
-cd MediaSDK
-./msdk_build.sh
+cd video_e2e_sample
+mkdir -p build
+cd build
+cmake ../
+make -j4
 ```
 
 ### 2. Run tests to make sure below tests can run without error 

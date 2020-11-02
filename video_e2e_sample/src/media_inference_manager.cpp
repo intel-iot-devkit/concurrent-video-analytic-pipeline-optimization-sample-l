@@ -26,6 +26,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #include "human_pose_estimator.hpp"
 #include "render_human_pose.hpp"
+#include "vaapi_allocator.h"
 
 #define FDUMP 0
 #define LESS_P 1
@@ -33,7 +34,11 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #define HP_INFERENCE_DEV "GPU"
 
 #define FD_IR_FILE_PATH "deployment_tools/open_model_zoo/tools/downloader/intel/face-detection-retail-0004/FP16/"
+#ifdef USE_MOBILENET_SSD
+#define FD_IR_FILE_NAME "mobilenet-ssd.xml"
+#else
 #define FD_IR_FILE_NAME "face-detection-retail-0004.xml"
+#endif
 
 
 #define HP_IR_FILE_PATH "deployment_tools/open_model_zoo/tools/downloader/intel/human-pose-estimation-0001/FP16/"
@@ -59,7 +64,9 @@ using namespace cv;
 MediaInferenceManager::MediaInferenceManager():
     mInferType(0),
     mTargetDevice("GPU"),
-    mMaxObjNum(-1)
+    mMaxObjNum(-1),
+    mRemoteBlob(false),
+    mVADpy(nullptr)
 {
     mInit = false;
 }
@@ -76,13 +83,22 @@ MediaInferenceManager::~MediaInferenceManager()
 
 int MediaInferenceManager::Init(int dec_w, int dec_h,
         int infer_type, const char *model_dir,
-        enum InferDeviceType device, int maxObjNum)
+        enum InferDeviceType device, int maxObjNum,
+        bool remoteBlob, VADisplay vaDpy)
 {
     int ret = 0;
     mInferType = infer_type;
     mDecW = dec_w;
     mDecH = dec_h;
     mMaxObjNum = maxObjNum;
+
+    if (remoteBlob && (!vaDpy))
+    {
+        return -1;
+    }
+
+    mRemoteBlob = remoteBlob;
+    mVADpy = vaDpy;
 
     switch(device)
     {
@@ -122,6 +138,25 @@ int MediaInferenceManager::Init(int dec_w, int dec_h,
     return ret;
 }
 
+int MediaInferenceManager::RunInfer(mfxFrameData *pData, mfxFrameData *pData_dec, bool inferOffline, int decSurfPitch)
+{
+    if (!mInit)
+    {
+        return -1;
+    }
+
+    switch(mInferType)
+    {
+        case InferTypeFaceDetection:
+            RunInferFD(pData, pData_dec, inferOffline, decSurfPitch);
+            break;
+        default:
+            msdk_printf(MSDK_STRING("ERROR:Unsupported inference type %d\n"), mInferType);
+            return -1;
+    }
+    return 0;
+}
+
 int MediaInferenceManager::RunInfer(mfxFrameData *pData, bool inferOffline)
 {
     if (!mInit)
@@ -147,6 +182,24 @@ int MediaInferenceManager::RunInfer(mfxFrameData *pData, bool inferOffline)
     return 0;
 }
 
+int MediaInferenceManager::RenderRepeatLast(mfxFrameData *pData, bool isGrey, int decSurfPitch)
+{
+    if (!mInit)
+    {
+        return -1;
+    }
+
+    switch(mInferType)
+    {
+        case InferTypeFaceDetection:
+            RenderRepeatLastFD(pData, true, decSurfPitch);
+            break;
+        default:
+            return -1;
+    }
+    return 0;
+}
+ 
 int MediaInferenceManager::RenderRepeatLast(mfxFrameData *pData)
 {
     if (!mInit)
@@ -173,11 +226,25 @@ int MediaInferenceManager::RenderRepeatLast(mfxFrameData *pData)
 }
 
 
-int MediaInferenceManager::RenderRepeatLastFD(mfxFrameData *pData)
+int MediaInferenceManager::RenderRepeatLastFD(mfxFrameData *pData, bool isGrey, int decSurfPitch)
 {
     if (mObjectDetector && ( mFDResults.size() > 0)){
-        Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pData->B);
-        mObjectDetector->RenderResults(mFDResults, frameRGB4);
+        if (isGrey)
+        {
+            if (decSurfPitch < mDecW)
+            {
+                std::cout<<"MediaInferenceManager::RenderRepeatLastFD: Wrong pitch size "<<decSurfPitch<<std::endl;
+                return -1;
+            }
+            Mat frameY(mDecH, decSurfPitch, CV_8UC1, (unsigned char *)pData->Y);
+            mObjectDetector->RenderResults(mFDResults, frameY, true);
+        }
+        else
+        {
+            Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pData->B);
+
+            mObjectDetector->RenderResults(mFDResults, frameRGB4);
+        }
     }
     return 0;
 }
@@ -204,23 +271,58 @@ int MediaInferenceManager::RenderRepeatLastVD(mfxFrameData *pData)
 
 int MediaInferenceManager::RunInferHP(mfxFrameData *pData, bool inferOffline)
 {
-    unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
-    Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pbuf);
-    Mat frameScl(mInputH, mInputH, CV_8UC4);
-    Mat frame(mInputH, mInputW, CV_8UC3);
-
-    resize(frameRGB4, frameScl, Size(mInputW, mInputH));
-    cvtColor(frameScl, frame, COLOR_RGBA2RGB);
-
-    if (mPoses.size() > 0)
+    if (!mRemoteBlob)
     {
-        mPoses.clear();
+        unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
+        Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pbuf);
+        Mat frameScl(mInputH, mInputH, CV_8UC4);
+        Mat frame(mInputH, mInputW, CV_8UC3);
+
+        resize(frameRGB4, frameScl, Size(mInputW, mInputH));
+        cvtColor(frameScl, frame, COLOR_RGBA2RGB);
+
+        if (mPoses.size() > 0)
+        {
+            mPoses.clear();
+        }
+        mPoses = mHPEstimator->estimate(frame);
+
+        if (!inferOffline)
+        {
+            renderHumanPose(mPoses, frameRGB4);
+        }
     }
-    mPoses = mHPEstimator->estimate(frame);
+    else
+    {
+        VASurfaceID *surface =  ((vaapiMemId*)pData->MemId)->m_surface;
+        mPoses = mHPEstimator->estimate(*surface);
+    }
+
+    return 0;
+}
+
+int MediaInferenceManager::RunInferFD(mfxFrameData *pData, mfxFrameData *pData_dec, bool inferOffline, int decSurfPitch)
+{
+    int alignedH = MSDK_ALIGN16(mInputH); 
+    int alignedW = MSDK_ALIGN32(mInputW); 
+
+    if (mFDResults.size() > 0)
+    {
+        mFDResults.clear();
+    }
+
+    mObjectDetector->Detect(pData,pData_dec, mFDResults);
 
     if (!inferOffline)
     {
-        renderHumanPose(mPoses, frameRGB4);
+        if (decSurfPitch < mDecW)
+        {
+            std::cout<<"MediaInferenceManager::RunInferFD Wrong pitch size "<<decSurfPitch<<std::endl;
+        }
+        Mat frameY(mDecH, decSurfPitch, CV_8UC1, (unsigned char *)pData_dec->Y);
+
+        /* Bounding box */
+        mObjectDetector->RenderResults(mFDResults, frameY, true);
     }
 
     return 0;
@@ -228,24 +330,38 @@ int MediaInferenceManager::RunInferHP(mfxFrameData *pData, bool inferOffline)
 
 int MediaInferenceManager::RunInferFD(mfxFrameData *pData, bool inferOffline)
 {
-    unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
-    Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pbuf);
-    Mat frameScl(mInputH, mInputH, CV_8UC4);
-    Mat frame(mInputH, mInputW, CV_8UC3);
-
-    resize(frameRGB4, frameScl, Size(mInputW, mInputH));
-    cvtColor(frameScl, frame, COLOR_RGBA2RGB);
-
-    if (mFDResults.size() > 0)
+    if (!mRemoteBlob)
     {
-        mFDResults.clear();
+        unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
+        Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pbuf);
+        Mat frame(mInputH, mInputW, CV_8UC3);
+        if (mDecH == mInputH && mInputW == mDecW)
+        {
+            cvtColor(frameRGB4, frame, COLOR_RGBA2RGB);
+        }
+        else
+        {
+            Mat frameScl(mInputH, mInputW, CV_8UC4);
+            resize(frameRGB4, frameScl, Size(mInputW, mInputH));
+            cvtColor(frameScl, frame, COLOR_RGBA2RGB);
+        }
+
+        if (mFDResults.size() > 0)
+        {
+            mFDResults.clear();
+        }
+        mObjectDetector->Detect(frame, mFDResults);
+
+        if (!inferOffline)
+        {
+            /* Bounding box */
+            mObjectDetector->RenderResults(mFDResults, frameRGB4);
+        }
     }
-    mObjectDetector->Detect(frame, mFDResults);
-
-    if (!inferOffline)
+    else
     {
-        /* Bounding box */
-        mObjectDetector->RenderResults(mFDResults, frameRGB4);
+        VASurfaceID *surface =  ((vaapiMemId*)pData->MemId)->m_surface;
+        mObjectDetector->Detect(*surface, mFDResults);
     }
 
     return 0;
@@ -289,7 +405,7 @@ int MediaInferenceManager::InitHumanPose(const char *model_dir)
     }
 
     mHPEstimator = new HumanPoseEstimator(ir_file, mTargetDevice, false);
-    mHPEstimator->Init();
+    mHPEstimator->Init(mRemoteBlob, mVADpy, mDecW, mDecH);
 
     return 0;
 }
@@ -316,7 +432,16 @@ int MediaInferenceManager::GetFullIRPath(const char *model_dir, const char *file
     else
 #endif
     {
-        snprintf(ir_file, IR_PATH_MAX_LEN, "%s/%s", model_dir, file_name);
+        unsigned int len = strnlen(model_dir, IR_PATH_MAX_LEN);
+        /* It's IR XML file */
+        if ( len > 4 && strncmp(model_dir + len - 4, ".xml", 4) == 0)
+        {
+            snprintf(ir_file, IR_PATH_MAX_LEN, "%s", model_dir);
+        }
+        else
+        {
+            snprintf(ir_file, IR_PATH_MAX_LEN, "%s/%s", model_dir, file_name);
+        }
     }
 
     if (0 != access(ir_file, R_OK))
@@ -375,12 +500,11 @@ int MediaInferenceManager::InitFaceDetection(const char *model_dir)
         return -1;
     }
 
-    mInputW = 300;
-    mInputH = 300;
     mBatchId = 1;
 
     mObjectDetector = new ObjectDetect(false);
-    mObjectDetector->Init(ir_file, mTargetDevice);
+    mObjectDetector->Init(ir_file, mTargetDevice, mRemoteBlob, mVADpy);
+    mObjectDetector->GetInputSize(mInputW, mInputH);
     mObjectDetector->SetSrcImageSize(mDecW, mDecH);
 
     return 0;

@@ -28,8 +28,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #include <inference_engine.hpp>
 #include <opencv2/core/core.hpp>
-
+#include <gpu/gpu_context_api_va.hpp>
 #include "human_pose.hpp"
+#include "network_factory.hpp"
 
 namespace human_pose_estimation {
 class HumanPoseEstimator {
@@ -39,12 +40,17 @@ public:
     HumanPoseEstimator(const std::string& modelPath,
                        const std::string& targetDeviceName,
                        bool enablePerformanceReport = false);
-    int Init();
+    int Init(bool remoteBlob, VADisplay va_dpy, int renderW, int renderH);
     std::vector<HumanPose> estimate(const cv::Mat& image);
+    std::vector<HumanPose> estimate(VASurfaceID va_surface);
     ~HumanPoseEstimator();
 
 private:
-    void preprocess(const cv::Mat& image, float* buffer) const;
+
+    HumanPoseEstimator(HumanPoseEstimator const&);
+    HumanPoseEstimator& operator=(HumanPoseEstimator const&);
+
+    void preprocess(const cv::Mat& image, uint8_t* buffer) const;
     std::vector<HumanPose> postprocess(
             const float* heatMapsData, const int heatMapOffset, const int nHeatMaps,
             const float* pafsData, const int pafOffset, const int nPafs,
@@ -57,8 +63,10 @@ private:
                             const cv::Size& featureMapsSize,
                             const cv::Size& imageSize) const;
     bool inputWidthIsChanged(const cv::Size& imageSize);
-    void LoadNetwork();
 
+    VADisplay mVADpy;
+    bool mRemoteBlob;
+    std::string mInputName;
     int minJointsNumber;
     int stride;
     cv::Vec4i pad;
@@ -69,15 +77,18 @@ private:
     float minSubsetScore;
     cv::Size inputLayerSize;
     int upsampleRatio;
-    InferenceEngine::InferencePlugin plugin;
-    InferenceEngine::CNNNetwork network;
-    InferenceEngine::ExecutableNetwork executableNetwork;
-    InferenceEngine::InferRequest request;
-    InferenceEngine::CNNNetReader netReader;
+    InferenceEngine::InferRequest mRequest;
     std::string pafsBlobName;
     std::string heatmapsBlobName;
     bool enablePerformanceReport;
     std::string modelPath;
     std::string targetDeviceName;
+
+    NetworkInfo *mNetworkInfo;
+
+    //Width and height of target render image for rendering results
+    int mRenderW;
+    int mRenderH;
+
 };
 }  // namespace human_pose_estimation

@@ -79,7 +79,6 @@ namespace TranscodingSample
 }
 #endif
 
-
 // set structure to define values
 sInputParams::sInputParams() : __sInputParams()
 {
@@ -123,6 +122,7 @@ sInputParams::sInputParams() : __sInputParams()
     InferDevType = MediaInferenceManager::InferDeviceGPU;
     InferMaxObjNum = -1; //-1 means no limitation
     InferOffline = false;
+    InferRemoteBlob = false;
     bDropDecOutput = false;
 }
 
@@ -200,6 +200,7 @@ CTranscodingPipeline::CTranscodingPipeline():
     mInferType = MediaInferenceManager::InferTypeNone;
     mInferMaxObjNum = -1;
     mInferInterval = 6;
+    mRemoteBlob = false;
     mInferOffline = false;
     //SFC or VPP output size and will be used by inference manager
     //They will be initialized in InitDecMfxParams
@@ -365,7 +366,7 @@ mfxStatus CTranscodingPipeline::VPPPreInit(sInputParams *pParams)
             (VPP_FILTER_DISABLED != pParams->mctfParam.mode) ||
 #endif
              (pParams->EncoderFourCC && decoderFourCC && pParams->EncoderFourCC != decoderFourCC && m_bEncodeEnable) ||
-             (pParams->DecoderFourCC == MFX_FOURCC_RGB4 && m_bDecodeEnable && pParams->EncodeId != MFX_CODEC_JPEG))
+             ( (pParams->DecoderFourCC == MFX_FOURCC_RGB4 || pParams->DecoderFourCC == MFX_FOURCC_RGBP) && m_bDecodeEnable && pParams->EncodeId != MFX_CODEC_JPEG))
         {
             if (m_bIsFieldWeaving || m_bIsFieldSplitting)
             {
@@ -519,11 +520,14 @@ mfxStatus CTranscodingPipeline::PreEncPreInit(sInputParams *pParams)
 
 mfxVideoParam CTranscodingPipeline::GetDecodeParam() {
     if (m_bIsVpp)
-     {
-         mfxVideoParam tmp = m_mfxDecParams;
-         tmp.mfx.FrameInfo = m_mfxVppParams.vpp.Out;
-         return tmp;
-     }
+    {
+        mfxVideoParam tmp = m_mfxDecParams;
+        if (!mInferRGBP)
+        {
+            tmp.mfx.FrameInfo = m_mfxVppParams.vpp.Out;
+        }
+        return tmp;
+    }
     else if (m_bIsPlugin)
     {
         mfxVideoParam tmp = m_mfxDecParams;
@@ -531,7 +535,7 @@ mfxVideoParam CTranscodingPipeline::GetDecodeParam() {
         return tmp;
     }
 
-     return m_mfxDecParams;
+    return m_mfxDecParams;
  };
 // 1 ms provides better result in range [0..5] ms
 enum
@@ -588,7 +592,7 @@ mfxStatus CTranscodingPipeline::DecodeOneFrame(ExtendedSurface *pExtSurface)
         sts = m_pmfxDEC->DecodeFrameAsync(m_pmfxBS, pmfxSurface, &pExtSurface->pSurface, &pExtSurface->Syncp);
 
         if ( (MFX_WRN_DEVICE_BUSY == sts) &&
-             (DevBusyTimer.GetTime() > MSDK_DEVICE_FREE_WAIT_INTERVAL/1000) )
+             (DevBusyTimer.GetTime() > MSDK_WAIT_INTERVAL/1000) )
         {
             msdk_printf(MSDK_STRING("ERROR: Decoder device busy (during long period)\n"));
             return MFX_ERR_DEVICE_FAILED;
@@ -645,7 +649,7 @@ mfxStatus CTranscodingPipeline::DecodeLastFrame(ExtendedSurface *pExtSurface)
         sts = m_pmfxDEC->DecodeFrameAsync(NULL, pmfxSurface, &pExtSurface->pSurface, &pExtSurface->Syncp);
 
         if ( (MFX_WRN_DEVICE_BUSY == sts) &&
-             (DevBusyTimer.GetTime() > MSDK_DEVICE_FREE_WAIT_INTERVAL/1000) )
+             (DevBusyTimer.GetTime() > MSDK_WAIT_INTERVAL/1000) )
         {
             msdk_printf(MSDK_STRING("ERROR: Decoder device busy (during long period)\n"));
             return MFX_ERR_DEVICE_FAILED;
@@ -855,6 +859,7 @@ mfxStatus CTranscodingPipeline::Decode()
 
     ExtendedSurface DecExtSurface    = {0};
     ExtendedSurface VppExtSurface    = {0};
+    ExtendedSurface SinkExtSurface    = {0};
     ExtendedSurface PreEncExtSurface = {0};
     bool shouldReadNextFrame=true;
 
@@ -882,7 +887,8 @@ mfxStatus CTranscodingPipeline::Decode()
     {
         if (0 != mInferMnger.Init(m_decOutW, m_decOutH,
                     mInferType, mStrIRFileDir,
-                    mInferDevType, mInferMaxObjNum))
+                    mInferDevType, mInferMaxObjNum,
+                    mRemoteBlob, mVADpy))
         {
             NoMoreFramesSignal();
             return MFX_ERR_UNKNOWN;
@@ -1033,6 +1039,16 @@ mfxStatus CTranscodingPipeline::Decode()
             VppExtSurface.Syncp = DecExtSurface.Syncp;
         }
 
+        if (mInferRGBP)
+        {
+            SinkExtSurface.pSurface =  DecExtSurface.pSurface;
+            SinkExtSurface.Syncp = DecExtSurface.Syncp;
+        }
+        else
+        {
+            SinkExtSurface.pSurface = VppExtSurface.pSurface;
+            SinkExtSurface.Syncp = DecExtSurface.Syncp;
+        }
         //--- Sometimes VPP may return 2 surfaces on output, for the first one it'll return status MFX_ERR_MORE_SURFACE - we have to call VPPOneFrame again in this case
         if(MFX_ERR_MORE_SURFACE == sts)
         {
@@ -1062,12 +1078,12 @@ mfxStatus CTranscodingPipeline::Decode()
 
         if (m_pmfxPreENC.get())
         {
-            sts = PreEncOneFrame(&VppExtSurface, &PreEncExtSurface);
+            sts = PreEncOneFrame(&SinkExtSurface, &PreEncExtSurface);
         }
         else // no VPP - just copy pointers
         {
-            PreEncExtSurface.pSurface = VppExtSurface.pSurface;
-            PreEncExtSurface.Syncp = VppExtSurface.Syncp;
+            PreEncExtSurface.pSurface = SinkExtSurface.pSurface;
+            PreEncExtSurface.Syncp = SinkExtSurface.Syncp;
         }
 
         if (sts == MFX_ERR_MORE_DATA || !PreEncExtSurface.pSurface)
@@ -1111,20 +1127,67 @@ mfxStatus CTranscodingPipeline::Decode()
                 VppExtSurface.Syncp = NULL;
 
                 mfxFrameData *pData = &VppExtSurface.pSurface->Data;
+                mfxFrameData *pData_dec = &DecExtSurface.pSurface->Data;
 
-                m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, pData->MemId, pData);
+                if (mRemoteBlob)
+                {
+                    /*When remote blob is enabled, mInferOffline is set to true */
+                    if (runInfer)
+                    {
+                        mInferMnger.RunInfer(pData, true);
+                    }
+                }
+                else if (mInferRGBP)
+                {
+                    /* get surface every 6 frame, only in decode pipeline */
+                    if (runInfer)
+                    {
+                        m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, pData->MemId, pData);
+                        m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, pData_dec->MemId, pData_dec);
+                        
+#if 0
+                        static bool printinfo = true;
+                        mfxFrameInfo *pInfo = &DecExtSurface.pSurface->Info;
+                        if (printinfo)
+                        {
+                            msdk_printf(MSDK_STRING("Surface content size %dx%d  memory size %dx%d pitch %d\n"),
+                                    pInfo->CropW, pInfo->CropH, pInfo->Width, pInfo->Height, pData_dec->Pitch);
+                            msdk_printf(MSDK_STRING("Fourcc %x R pointer %p, G pointer %p, B pointer %p\n"),
+                                    pInfo->FourCC, pData->R, pData->G, pData->B);
 
-                /* get surface every 6 frame, only in decode pipeline */
-                if (runInfer)
-                {
-                    mInferMnger.RunInfer(pData, mInferOffline);
+                            printinfo = false;
+                        }
+#endif
+                        mInferMnger.RunInfer(pData, pData_dec, mInferOffline, pData_dec->Pitch);
+                        m_pMFXAllocator->Unlock(m_pMFXAllocator->pthis, pData->MemId, pData);
+                        m_pMFXAllocator->Unlock(m_pMFXAllocator->pthis, pData_dec->MemId, pData_dec);
+                    }
+                    else if (!mInferOffline)
+                    {
+
+                        m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, pData_dec->MemId, pData_dec);
+                        /* draw bounding box every frame, IE every 6 frame */
+                        mInferMnger.RenderRepeatLast(pData_dec, true, pData_dec->Pitch);
+                        m_pMFXAllocator->Unlock(m_pMFXAllocator->pthis, pData_dec->MemId, pData_dec);
+                    }
+
                 }
-                else if (!mInferOffline)
+                else
                 {
-                    /* draw bounding box every frame, IE every 6 frame */
-                    mInferMnger.RenderRepeatLast(pData);
+                    m_pMFXAllocator->Lock(m_pMFXAllocator->pthis, pData->MemId, pData);
+
+                    /* get surface every 6 frame, only in decode pipeline */
+                    if (runInfer)
+                    {
+                        mInferMnger.RunInfer(pData, mInferOffline);
+                    }
+                    else if (!mInferOffline)
+                    {
+                        /* draw bounding box every frame, IE every 6 frame */
+                        mInferMnger.RenderRepeatLast(pData);
+                    }
+                    m_pMFXAllocator->Unlock(m_pMFXAllocator->pthis, pData->MemId, pData);
                 }
-                m_pMFXAllocator->Unlock(m_pMFXAllocator->pthis, pData->MemId, pData);
             }
         }
 
@@ -2475,7 +2538,7 @@ mfxStatus CTranscodingPipeline::InitDecMfxParams(sInputParams *pInParams)
 
     //--- Force setting fourcc type if required
     //video decoding doesn't support MFX_FOURCC_RGB4 as output
-    if(pInParams->DecoderFourCC && ((pInParams->DecoderFourCC != MFX_FOURCC_RGB4) || (pInParams->DecodeId == MFX_CODEC_JPEG)))
+    if(pInParams->DecoderFourCC && (((pInParams->DecoderFourCC != MFX_FOURCC_RGB4) && (pInParams->DecoderFourCC != MFX_FOURCC_RGBP)) || (pInParams->DecodeId == MFX_CODEC_JPEG)))
     {
         m_mfxDecParams.mfx.FrameInfo.FourCC=pInParams->DecoderFourCC;
         m_mfxDecParams.mfx.FrameInfo.ChromaFormat=FourCCToChroma(pInParams->DecoderFourCC);
@@ -2492,11 +2555,23 @@ mfxStatus CTranscodingPipeline::InitDecMfxParams(sInputParams *pInParams)
         decPostProc->In.CropW = m_mfxDecParams.mfx.FrameInfo.CropW;
         decPostProc->In.CropH = m_mfxDecParams.mfx.FrameInfo.CropH;
 
-        //decPostProc->Out.FourCC = m_mfxDecParams.mfx.FrameInfo.FourCC;
-        //decPostProc->Out.ChromaFormat = m_mfxDecParams.mfx.FrameInfo.ChromaFormat;
-        
-        decPostProc->Out.FourCC = MFX_FOURCC_RGB4; //Force SFC output to be RGB444
-        decPostProc->Out.ChromaFormat = MFX_CHROMAFORMAT_YUV444;
+        if (pInParams->InferRemoteBlob)
+        {
+            decPostProc->Out.FourCC = m_mfxDecParams.mfx.FrameInfo.FourCC;
+            decPostProc->Out.ChromaFormat = m_mfxDecParams.mfx.FrameInfo.ChromaFormat;
+        }
+        else if (mInferRGBP)
+        {
+
+            decPostProc->Out.FourCC = m_mfxDecParams.mfx.FrameInfo.FourCC;
+            decPostProc->Out.ChromaFormat = m_mfxDecParams.mfx.FrameInfo.ChromaFormat;
+        }
+        else 
+        {
+            decPostProc->Out.FourCC = MFX_FOURCC_RGB4; //Force SFC output to be RGB444
+            decPostProc->Out.ChromaFormat = MFX_CHROMAFORMAT_YUV444;
+
+        }
         decPostProc->Out.Width = MSDK_ALIGN16(pInParams->nVppCompDstW);
         decPostProc->Out.Height = MSDK_ALIGN16(pInParams->nVppCompDstH);
         decPostProc->Out.CropX = 0;
@@ -2512,6 +2587,7 @@ mfxStatus CTranscodingPipeline::InitDecMfxParams(sInputParams *pInParams)
     mInferOffline = pInParams->InferOffline;
     mInferDevType = pInParams->InferDevType;
     mInferMaxObjNum = pInParams->InferMaxObjNum;
+    mRemoteBlob = pInParams->InferRemoteBlob;
     if (pInParams->InferInterval > 0)
     {
         mInferInterval = pInParams->InferInterval;
@@ -3122,7 +3198,7 @@ mfxStatus CTranscodingPipeline::InitVppMfxParams(sInputParams *pInParams)
     {
         m_mfxVppParams.vpp.Out.CropH = pInParams->nDstHeight;
         m_mfxVppParams.vpp.Out.Height    = (MFX_PICSTRUCT_PROGRESSIVE == m_mfxVppParams.vpp.Out.PicStruct) ?
-                                             MSDK_ALIGN16(pInParams->nDstHeight) : MSDK_ALIGN32(pInParams->nDstHeight);
+            MSDK_ALIGN16(pInParams->nDstHeight) : MSDK_ALIGN32(pInParams->nDstHeight);
     }
 
 
@@ -3165,25 +3241,41 @@ mfxStatus CTranscodingPipeline::InitVppMfxParams(sInputParams *pInParams)
     }
 
     //Set VPP parameters for decoding session
-    if (pInParams->DecoderFourCC == MFX_FOURCC_RGB4)
+    if ((pInParams->DecoderFourCC == MFX_FOURCC_RGB4 || pInParams->DecoderFourCC == MFX_FOURCC_RGBP) && m_bDecodeEnable)
     {
         m_mfxVppParams.vpp.Out.FourCC = pInParams->DecoderFourCC;
         m_mfxVppParams.vpp.Out.ChromaFormat = FourCCToChroma(pInParams->DecoderFourCC);
         m_mfxVppParams.vpp.Out.BitDepthLuma = m_mfxVppParams.vpp.Out.BitDepthChroma = 8;
-        if (pInParams->nVppCompDstH)
-        {
-            m_mfxVppParams.vpp.Out.CropH = pInParams->nVppCompDstH;
-            m_mfxVppParams.vpp.Out.Height = MSDK_ALIGN16(pInParams->nVppCompDstH);
-        }
 
-        if (pInParams->nVppCompDstW)
+        if (mInferRGBP && m_bDecodeEnable)
         {
-            m_mfxVppParams.vpp.Out.CropW = pInParams->nVppCompDstW;
-            m_mfxVppParams.vpp.Out.Width = MSDK_ALIGN16(pInParams->nVppCompDstW);
+            //TBD: currently only -infer::fd is supported when -dc::rgbp is set.
+            m_mfxVppParams.vpp.Out.CropW = INFER_FD_INPUT_W;
+            m_mfxVppParams.vpp.Out.Width = MSDK_ALIGN16(INFER_FD_INPUT_W);
+
+            m_mfxVppParams.vpp.Out.CropH = INFER_FD_INPUT_H;
+            m_mfxVppParams.vpp.Out.Height = MSDK_ALIGN16(INFER_FD_INPUT_H);
+        }
+        else
+        {
+
+            if (pInParams->nVppCompDstH)
+            {
+                m_mfxVppParams.vpp.Out.CropH = pInParams->nVppCompDstH;
+                m_mfxVppParams.vpp.Out.Height = MSDK_ALIGN16(pInParams->nVppCompDstH);
+            }
+
+            if (pInParams->nVppCompDstW)
+            {
+                m_mfxVppParams.vpp.Out.CropW = pInParams->nVppCompDstW;
+                m_mfxVppParams.vpp.Out.Width = MSDK_ALIGN16(pInParams->nVppCompDstW);
+            }
+
         }
 
         m_decOutW = pInParams->nVppCompDstW;
         m_decOutH = pInParams->nVppCompDstH;
+
     }
 
     /* VPP Comp Init */
@@ -3843,6 +3935,15 @@ mfxStatus CTranscodingPipeline::Init(sInputParams *pParams,
         statisticsWindowSize = m_MaxFramesForTranscode;
 
     m_strMfxParamsDumpFile.assign(pParams->strMfxParamsDumpFile);
+
+    if (pParams->DecoderFourCC == MFX_FOURCC_RGBP)
+    {
+        mInferRGBP = true;
+    }
+    else
+    {
+        mInferRGBP = false;
+    }
 
     if (pParams->statisticsLogFile)
     {

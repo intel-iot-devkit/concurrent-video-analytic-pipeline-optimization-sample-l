@@ -1,0 +1,5 @@
+-i::h264 /home/work/video/2.h264  -join -hw  -async 4  -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 456 -vpp_comp_dst_h 256 -dec_postproc -ext_allocator -infer::hp ./model -infer::interval 6 -infer::offline -infer::remote_blob
+-i::h264 /home/work/video/2.h264  -join -hw  -async 4  -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 456 -vpp_comp_dst_h 256 -dec_postproc -ext_allocator -infer::hp ./model -infer::interval 6 -infer::offline -infer::remote_blob
+-i::h264 /home/work/video/2.h264  -join -hw  -async 4  -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 456 -vpp_comp_dst_h 256 -dec_postproc -ext_allocator -infer::hp ./model -infer::interval 6 -infer::offline -infer::remote_blob
+-i::h264 /home/work/video/2.h264  -join -hw  -async 4  -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 456 -vpp_comp_dst_h 256 -dec_postproc -ext_allocator -infer::hp ./model -infer::interval 6 -infer::offline -infer::remote_blob
+-fake_sink 1 -w 1920 -h 1080 -async 4 -threads 2 -join -hw  -i::source -ext_allocator -ec::rgb4 -o::h264 /tmp/2.h264

@@ -32,7 +32,11 @@ using namespace InferenceEngine;
 
 VehicleDetect::VehicleDetect(bool enablePerformanceReport)
     :mDetectThreshold(0.65f),
-    mEnablePerformanceReport(enablePerformanceReport)
+    mDetectorMaxProposalCount(0),
+    mDetectorObjectSize(0),
+    mEnablePerformanceReport(enablePerformanceReport),
+    mVDNetworkInfo(nullptr),
+    mVANetworkInfo(nullptr)
 {
     return;
 }
@@ -43,28 +47,44 @@ int VehicleDetect::Init(const std::string& detectorModelPath,
 {
     static std::mutex initLock;
     std::lock_guard<std::mutex> lock(initLock);
-    mPlugin = InferenceEngine::PluginDispatcher()
-            .getPluginByDevice(targetDeviceName);
-    if (mEnablePerformanceReport)
+
+
+    NetworkOptions optVD, optVA;
+
+    //Vehicle detector
+    mVDNetworkInfo = NetworkFactory::GetNetwork(detectorModelPath, targetDeviceName, optVD);
+
+    if (!mVDNetworkInfo)
     {
-        mPlugin.SetConfig({{InferenceEngine::PluginConfigParams::KEY_PERF_COUNT,
-                           InferenceEngine::PluginConfigParams::YES}});
+        std::cout<<"NetworkFactory::GetNetwork("<<detectorModelPath<<","<<targetDeviceName<<") failed!"<<std::endl;
+        return -1;
     }
 
-    //Load Vehicle Detector Network
-    mDetectorNetReader.ReadNetwork(detectorModelPath);
-    std::string binFileName = fileNameNoExt(detectorModelPath) + ".bin";
-    mDetectorNetReader.ReadWeights(binFileName);
-    mDetectorNetwork = mDetectorNetReader.getNetwork();
-    auto inputIt = mDetectorNetwork.getInputsInfo().begin();
-    if (inputIt == mDetectorNetwork.getInputsInfo().end())
+    std::cout<<"Loading network "<<detectorModelPath<<" on device "<<targetDeviceName<<" is done."<<std::endl;
+    InferenceEngine::CNNNetwork &detectorVDNetwork = mVDNetworkInfo->mNetwork;
+
+    //Vehicle attributes detector
+    mVANetworkInfo = NetworkFactory::GetNetwork(vehicleAttribsModelPath, targetDeviceName, optVA);
+
+    if (!mVANetworkInfo)
+    {
+        std::cout<<"NetworkFactory::GetNetwork("<<detectorModelPath<<","<<targetDeviceName<<") failed!"<<std::endl;
+        return -1;
+    }
+
+    std::cout<<"Loading network "<<detectorModelPath<<" on device "<<targetDeviceName<<" is done."<<std::endl;
+    InferenceEngine::CNNNetwork &detectorVANetwork = mVANetworkInfo->mNetwork;
+
+    auto inputIt = detectorVDNetwork.getInputsInfo().begin();
+    if (inputIt == detectorVDNetwork.getInputsInfo().end())
     {
         return -1;   
     }
     InferenceEngine::InputInfo::Ptr inputInfo = inputIt->second;
+    mVDDetectorInputName = inputIt->first;
     inputInfo->setPrecision(Precision::U8);
 
-    InferenceEngine::OutputsDataMap outputInfo = mDetectorNetwork.getOutputsInfo();
+    InferenceEngine::OutputsDataMap outputInfo = detectorVDNetwork.getOutputsInfo();
     auto outputBlobsIt = outputInfo.begin();
     if (outputBlobsIt == outputInfo.end())
     {
@@ -80,17 +100,10 @@ int VehicleDetect::Init(const std::string& detectorModelPath,
     output->setPrecision(Precision::FP32);
     output->setLayout(Layout::NCHW);
 
-    mVDExecutableNetwork = mPlugin.LoadNetwork(mDetectorNetwork, {});
-    mDetectorRequest = mVDExecutableNetwork.CreateInferRequest();
+    mVDDetectorRequest =  mVDNetworkInfo->CreateNewInferRequest();
 
-    //Load Vehicle Attribute Network
-    mVANetReader.ReadNetwork(vehicleAttribsModelPath);
-    binFileName = fileNameNoExt(vehicleAttribsModelPath) + ".bin";
-    mVANetReader.ReadWeights(binFileName);
-    mVANetwork = mVANetReader.getNetwork();
-    mVANetwork.setBatchSize(1);
-    auto VAInputP = mVANetwork.getInputsInfo().begin();
-    if (VAInputP == mVANetwork.getInputsInfo().end())
+    auto VAInputP = detectorVANetwork.getInputsInfo().begin();
+    if (VAInputP == detectorVANetwork.getInputsInfo().end())
     {
         return -1;
     }
@@ -98,7 +111,8 @@ int VehicleDetect::Init(const std::string& detectorModelPath,
     inputInfo->setPrecision(Precision::U8);
     inputInfo->getInputData()->setLayout(Layout::NCHW);
 
-    outputInfo = mVANetwork.getOutputsInfo();
+    mVADetectorInputName = VAInputP->first;
+    outputInfo = detectorVANetwork.getOutputsInfo();
     outputBlobsIt = outputInfo.begin();
     if (outputBlobsIt == outputInfo.end())
     {
@@ -112,8 +126,7 @@ int VehicleDetect::Init(const std::string& detectorModelPath,
     }
     mVAOutputNameForType = (outputBlobsIt)->second->getName();  // type is the second output
 
-    mVAExecutableNetwork = mPlugin.LoadNetwork(mVANetwork, {});
-    mVARequest = mVAExecutableNetwork.CreateInferRequest();
+    mVARequest =  mVANetworkInfo->CreateNewInferRequest();
     return 0;
 }
 
@@ -134,17 +147,12 @@ void VehicleDetect::SetSrcImageSize(int width, int height)
 
 void VehicleDetect::Detect(const cv::Mat& image, std::vector<VehicleDetectResult>& results, int maxObjNum)
 {
-    auto inputIt = mDetectorNetwork.getInputsInfo().begin();
-    if (inputIt == mDetectorNetwork.getInputsInfo().end())
-    {
-        return;
-    }
   
-    InferenceEngine::Blob::Ptr input = mDetectorRequest.GetBlob(inputIt->first);
+    InferenceEngine::Blob::Ptr input = mVDDetectorRequest.GetBlob(mVDDetectorInputName);
     matU8ToBlob<uint8_t>(image, input);
-    mDetectorRequest.Infer();
+    mVDDetectorRequest.Infer();
 
-    const float *detections = mDetectorRequest.GetBlob(mDetectorOutputName)->buffer().as<float *>();
+    const float *detections = mVDDetectorRequest.GetBlob(mDetectorOutputName)->buffer().as<float *>();
     if (maxObjNum < 0 || maxObjNum > mDetectorMaxProposalCount)
     {
         maxObjNum = mDetectorMaxProposalCount; 
@@ -181,12 +189,8 @@ void VehicleDetect::Detect(const cv::Mat& image, std::vector<VehicleDetectResult
             break;
         }
     }
-    inputIt = mVANetwork.getInputsInfo().begin();
-    if (inputIt == mVANetwork.getInputsInfo().end())
-    {
-        return;
-    }
-    InferenceEngine::Blob::Ptr VAInput = mVARequest.GetBlob(inputIt->first);
+
+    InferenceEngine::Blob::Ptr VAInput = mVARequest.GetBlob(mVADetectorInputName);
     for (unsigned int i = 0; i < results.size(); i++)
     {
         //image's size can be different from source image
@@ -227,9 +231,13 @@ void VehicleDetect::RenderVDResults(std::vector<VehicleDetectResult>& results, c
 
 VehicleDetect::~VehicleDetect()
 {
+    NetworkFactory::PutNetwork(mVDNetworkInfo);
+    NetworkFactory::PutNetwork(mVANetworkInfo);
+#if 0
     if (mEnablePerformanceReport)
     {
         std::cout << "Performance counts for vehicle detection:" << std::endl << std::endl;
         printPerformanceCounts(mDetectorRequest.GetPerformanceCounts(), std::cout, "GPU", false);
     }
+#endif
 }

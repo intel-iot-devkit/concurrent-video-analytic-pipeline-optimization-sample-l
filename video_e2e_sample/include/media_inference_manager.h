@@ -33,11 +33,13 @@ public:
     enum InferDeviceType {InferDeviceGPU, InferDeviceCPU, InferDeviceHDDL };
 
     int Init(int dec_w, int dec_h, int infer_type, const char *model_dir,
-            enum InferDeviceType device, int maxObjNum);
+            enum InferDeviceType device, int maxObjNum, bool remoteBlob, VADisplay vaDpy);
     int GetInferInterval();
     /* If inferOffline is true, the results won't be render to input surface */
     int RunInfer(mfxFrameData *data, bool inferOffline);
+    int RunInfer(mfxFrameData *data, mfxFrameData *data_dec, bool inferOffline, int decSurfPitch);
     int RenderRepeatLast(mfxFrameData *data);
+    int RenderRepeatLast(mfxFrameData *pData, bool isGrey, int decSurfPitch);
 
     const static int InferTypeNone = 0;
     const static int InferTypeFaceDetection = 1;
@@ -45,11 +47,15 @@ public:
     const static int InferTypeVADetect = 3;
 
 private:
+    MediaInferenceManager(MediaInferenceManager const&);
+    MediaInferenceManager& operator=(MediaInferenceManager const&);
+
     int GetFullIRPath(const char *model_dir, const char *file_path,
             const char *file_name, char *ir_file);
     int InitFaceDetection(const char *model_dir);
     int RunInferFD(mfxFrameData *pData, bool inferOffline);
-    int RenderRepeatLastFD(mfxFrameData *pData);
+    int RunInferFD(mfxFrameData *data, mfxFrameData *data_dec, bool inferOffline, int decSurfPitch);
+    int RenderRepeatLastFD(mfxFrameData *pData, bool isGrey = false, int decSurfPitch = 0);
 
     int InitHumanPose(const char *model_dir);
     int RunInferHP(mfxFrameData *pData, bool inferOffline);
@@ -72,6 +78,8 @@ private:
     int mInferDevType;
     int mInit;
 
+    VADisplay mVADpy = NULL;
+    bool mRemoteBlob;
     /*Face Detection*/
     ObjectDetect *mObjectDetector = nullptr;
     std::vector<ObjectDetectResult> mFDResults;

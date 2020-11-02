@@ -6,7 +6,7 @@ mkdir -p $target_dir
 
 if [[ ! -d "${INTEL_OPENVINO_DIR}" ]];
 then echo "Please make sure openvino has been installed and enviroment variables has been set by "
-    echo "source intel/openvino/bin/setupvars.sh"
+    echo "source intel/openvino_2021/bin/setupvars.sh"
     exit -1;
 fi
 cd ${INTEL_OPENVINO_DIR}

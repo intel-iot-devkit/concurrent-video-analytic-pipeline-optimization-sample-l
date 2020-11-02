@@ -14,76 +14,63 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 \**********************************************************************************/
 
-
-// Copyright (C) 2018-2019 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
-//
-
 #pragma once
 
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 
 #include <string>
-#include <vector>
+#include <map>
 
 #include <inference_engine.hpp>
 #include <opencv2/core/core.hpp>
 #include <gpu/gpu_context_api_va.hpp>
 
 #include "sample_utils.h"
-#include "network_factory.hpp"
 
-//#define USE_MOBILENET_SSD
-
-#define INFER_FD_INPUT_W 300
-#define INFER_FD_INPUT_H 300
-struct ObjectDetectResult {
-    int label;
-    float confidence;
-    cv::Rect location;
-    std::string color;
-    std::string type;
+struct NetworkOptions
+{
+    NetworkOptions() : enableRemoteBlob(false), vaDpy(nullptr) {};
+    bool enableRemoteBlob;
+    VADisplay vaDpy;
 };
 
-class ObjectDetect {
+//Note, please use mutex lock when try to create instance,
+//modify members, or delete instance of NetworkInfo.
+class NetworkInfo {
 public:
+    InferenceEngine::Core mIE;
+    InferenceEngine::CNNNetwork mNetwork;
+    InferenceEngine::ExecutableNetwork mExeNetwork;
+    InferenceEngine::gpu::VAContext::Ptr mSharedVAContext;
 
-    ObjectDetect(bool mEnablePerformanceReport = false);
-    int Init(const std::string& detectorModelPath,
-            const std::string& targetDeviceName = "GPU",
-            bool remoteBlob = false, VADisplay vaDpy = NULL);
-    void Detect(const cv::Mat& image, std::vector<ObjectDetectResult>& results);
-    void Detect(VASurfaceID surface, std::vector<ObjectDetectResult>& results);
-    void SetSrcImageSize(int width, int height);
-    void GetInputSize(int &width, int &height);
-    void RenderResults(std::vector<ObjectDetectResult>& results, cv::Mat& image, bool isGrey = false);
-    int Detect(mfxFrameData *pData, mfxFrameData *pData_dec, std::vector<ObjectDetectResult>& results);
-    ~ObjectDetect();
+    int Init(const std::string &modelPath, const std::string &device, const NetworkOptions &opt);
+
+    InferenceEngine::InferRequest CreateNewInferRequest()
+    {
+        mRefNum++;
+        return mExeNetwork.CreateInferRequest();
+    }
+
+    void ReleaseInferRequest()
+    {
+        mRefNum--;
+    }
+
+    bool isAllInferRequestReleased()
+    {
+        return (mRefNum <= 0);
+    }
 
 private:
-    //Nonassinable
-    ObjectDetect(ObjectDetect const&);
-    ObjectDetect& operator=(ObjectDetect const&);
+    int mRefNum = 0;
+};
 
-    float mDetectThreshold;
-    bool mRemoteBlob;
-    std::string mInputName;
+class NetworkFactory {
+public:
+    static NetworkInfo *GetNetwork(const std::string &modelPath, const std::string &device, const NetworkOptions &opt);
+    static void PutNetwork(NetworkInfo *);
 
-    void CopyDetectResults(const float *detections, std::vector<ObjectDetectResult>& results);
-    int CopyImageData(unsigned char *dst, char unsigned *src, unsigned int width, unsigned int height, unsigned int pitch);
-
-    NetworkInfo *mNetworkInfo;
-
-    InferenceEngine::InferRequest mDetectorRequest;
-    int mDetectorMaxProposalCount;
-    int mDetectorObjectSize;
-    std::string mDetectorRoiBlobName;
-    std::string mDetectorOutputName;
-    bool mEnablePerformanceReport;
-    cv::Size mSrcImageSize;
-
-    unsigned int mInputW;
-    unsigned int mInputH;
-    unsigned char *mImgData;
+private:
+    static std::map<std::string, NetworkInfo *> mNetworks;
 };
 

@@ -88,6 +88,9 @@ protected:
 
     FILE *m_rtsp_file;
 #endif
+private:
+    FileAndRTSPBitstreamReader(FileAndRTSPBitstreamReader const&);
+    FileAndRTSPBitstreamReader& operator=(FileAndRTSPBitstreamReader const&);
 };
 
 

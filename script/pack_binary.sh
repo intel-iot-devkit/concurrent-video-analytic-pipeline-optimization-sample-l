@@ -17,10 +17,10 @@ libva_file_list="../COPYING drm/va_drm.h \
         x11/va_dri2.h x11/va_dricommon.h \
         glx/va_backend_glx.h glx/va_glx.h \
         libva.la libva-drm.la libva-x11.la libva-glx.la \
-        .libs/libva.so.2.700.0  .libs/libva.lai \
-        .libs/libva-drm.so.2.700.0T .libs/libva-drm.lai  \
-        .libs/libva-x11.so.2.700.0T .libs/libva-x11.lai  \
-        .libs/libva-glx.so.2.700.0T .libs/libva-glx.lai  \
+        .libs/libva.so.2.900.0  .libs/libva.lai \
+        .libs/libva-drm.so.2.900.0T .libs/libva-drm.lai  \
+        .libs/libva-x11.so.2.900.0T .libs/libva-x11.lai  \
+        .libs/libva-glx.so.2.900.0T .libs/libva-glx.lai  \
          va.h va_backend.h va_backend_vpp.h va_compat.h \
         va_dec_av1.h va_dec_hevc.h va_dec_jpeg.h va_dec_vp8.h \
         va_dec_vp9.h va_drmcommon.h va_egl.h va_enc_hevc.h \
@@ -78,7 +78,7 @@ if [ $? != 0 ]; then
 fi
 
 cp __bin/release/libmfx.pc  $msdk_release_dir/lib/pkgconfig/mfx.pc
-cp __bin/release/libmfxhw64.so  $msdk_release_dir/lib/libmfxhw64.so.1.32 
+cp __bin/release/libmfxhw64.so  $msdk_release_dir/lib/libmfxhw64.so.1.34 
 cp __lib/release/libvpp_plugin.a $msdk_release_dir/share/mfx/samples/
 
 sample_bin="sample_decode sample_encode sample_fei sample_multi_transcode"

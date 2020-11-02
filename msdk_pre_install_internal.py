@@ -138,38 +138,41 @@ if __name__ == "__main__":
         # Pull all the source code
         print "libva"
         if not os.path.exists("%s/libva"%(WORKING_DIR)):
-            cmd = "cd %s; rm -f libva.tar.gz; wget https://github.com/intel/libva/archive/2.9.0.tar.gz -O libva.tar.gz;"%(WORKING_DIR) 
-            cmd+= "tar zxf libva.tar.gz --one-top-level=libva --strip-components 1"
+            cmd = "cd %s; git clone https://github.com/intel/libva.git;"%(WORKING_DIR) 
+            cmd+= "cd libva;"
+            cmd+="git checkout 2.9.0"
             print cmd
             os.system(cmd);
 
         print "libva-utils"
         if not os.path.exists("%s/libva-utils"%(WORKING_DIR)):
-            cmd = "cd %s;rm -f libva-utils.tar.gz;"%(WORKING_DIR)
-            cmd += "wget https://github.com/intel/libva-utils/archive/2.9.1.tar.gz -O libva-utils.tar.gz;"
-            cmd += "tar zxf libva-utils.tar.gz --one-top-level=libva-utils --strip-components 1;"
+            cmd = "cd %s; git clone https://github.com/intel/libva-utils.git;"%(WORKING_DIR)
+            cmd += "cd libva-utils;"
+            cmd+="git checkout 2.9.1"
             print cmd
             os.system(cmd);
 
         print "media-driver"
         if not os.path.exists("%s/media-driver"%(WORKING_DIR)): 
-            cmd = "cd %s; rm -f intel-media-20.3.0.tar.gz;"%(WORKING_DIR)
-            cmd += "wget https://github.com/intel/media-driver/archive/intel-media-20.3.0.tar.gz; "
-            cmd += "tar zxf intel-media-20.3.0.tar.gz --one-top-level=media-driver --strip-components 1"
+            cmd = "cd %s; git clone https://github.com/intel/media-driver.git; "%(WORKING_DIR)
+            cmd += "cd media-driver;"
+            cmd+= "git checkout intel-media-20.3.0" 
             print cmd
             os.system(cmd);
 
         print "gmmlib"
         if not os.path.exists("%s/gmmlib"%(WORKING_DIR)): 
-            cmd = "cd %s;rm -f intel-gmmlib-20.3.2.tar.gz; wget https://github.com/intel/gmmlib/archive/intel-gmmlib-20.3.2.tar.gz; "%(WORKING_DIR)
-            cmd += "tar zxf intel-gmmlib-20.3.2.tar.gz --one-top-level=gmmlib --strip-components 1"
+            cmd = "cd %s; git clone https://github.com/intel/gmmlib.git; "%(WORKING_DIR)
+            cmd += "cd gmmlib;"
+            cmd+= "git checkout intel-gmmlib-20.3.2" 
             print cmd
             os.system(cmd);
 
         print "MediaSDK"
         if not os.path.exists("%s/MediaSDK"%(WORKING_DIR)): 
-            cmd = "cd %s; rm -f intel-mediasdk-20.3.0.tar.gz;  wget https://github.com/Intel-Media-SDK/MediaSDK/archive/intel-mediasdk-20.3.0.tar.gz;"%(WORKING_DIR)
-            cmd+= "tar zxf intel-mediasdk-20.3.0.tar.gz --one-top-level=MediaSDK --strip-components 1"
+            cmd = "cd %s; git clone https://github.com/Intel-Media-SDK/MediaSDK.git; "%(WORKING_DIR)
+            cmd+= "cd MediaSDK;"
+            cmd+= "git checkout intel-mediasdk-20.3.0" 
             print cmd
             os.system(cmd);
 
@@ -181,6 +184,7 @@ if __name__ == "__main__":
         print "************************************************************************"
 
         # Build and install libVA including the libVA utils for vainfo.
+        # libVA origin:fbf7138389f7d6adb6ca743d0ddf2dbc232895f6 (011118), libVA utils origin: 7b85ff442d99c233fb901a6fe3407d5308971645 (011118)
         cmd ="cd %s/libva; "%(WORKING_DIR)
         cmd+="./autogen.sh --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu; make -j4; sudo make install"
         print cmd

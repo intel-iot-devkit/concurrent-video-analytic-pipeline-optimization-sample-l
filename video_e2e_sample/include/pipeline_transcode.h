@@ -226,6 +226,7 @@ namespace TranscodingSample
         MediaInferenceManager::InferDeviceType InferDevType; //Target inference device
         int InferMaxObjNum; // The maximum number of detected objects for classification
         int InferInterval; //The distance of two inferenced frames
+        bool InferRemoteBlob; //If OpenVINO remote blob is used.
         
         msdk_char  strIRFileDir[MSDK_MAX_FILENAME_LEN]; // directory that contains IR files and label file 
         msdk_char  strRtspSaveFile[MSDK_MAX_FILENAME_LEN]; // save rtsp to local file  
@@ -692,6 +693,7 @@ namespace TranscodingSample
         bool IsPrefferiGfx() { return bPrefferiGfx; };
         bool IsPrefferdGfx() { return bPrefferdGfx; };
 #endif
+        void SetVADisplayHandle(VADisplay vaDpy) {mVADpy = vaDpy;}; 
     protected:
         virtual mfxStatus CheckRequiredAPIVersion(mfxVersion& version, sInputParams *pParams);
 
@@ -971,6 +973,9 @@ namespace TranscodingSample
         int mInferInterval; // The distance between two inferenced frame
         int m_decOutW;  //The width of SFC or VPP output
         int m_decOutH;  //The height of SFC or VPP output
+        bool mRemoteBlob; //If OpenVINO remote blob is enabled
+        bool mInferRGBP; //Decode output is in RGBP format and no csc is needed.
+        VADisplay mVADpy;
     private:
         DISALLOW_COPY_AND_ASSIGN(CTranscodingPipeline);
 

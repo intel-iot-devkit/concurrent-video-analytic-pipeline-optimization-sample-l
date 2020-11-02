@@ -357,6 +357,7 @@ void TranscodingSample::PrintHelp()
     msdk_printf(MSDK_STRING("  -infer::device <GPU, HDDL>   Specify the target inference device. GPU is used by default\n)"));
     msdk_printf(MSDK_STRING("  -infer::interval <number>    Specify inference interval. For example, '-infer::interval 6' means every 6 frame, there is one frame will be inferenced, and the inference fps is 30/6 = 5. By default, interval is 6 for face detection, 6 for human pose estimation and 1 for vehicel detection.\n)"));
     msdk_printf(MSDK_STRING("  -infer::max_detect <number>  Set the maximum number of detected objects. If there are more objects detected, they won't be processed further, i.e. classification or drawing box\n)"));
+    msdk_printf(MSDK_STRING("  -infer::remote_blob          Enable OpenVINO remote blob feature that use decoder output NV12 surface as inference input. Note, only -infer::fd support this option and the -vpp_comp_dst_h -vpp_comp_dst_w must be equal to inference input resolution\n"));
     msdk_printf(MSDK_STRING("\n"));
     msdk_printf(MSDK_STRING("\n"));
     msdk_printf(MSDK_STRING("RTSP parameters :\n"));
@@ -1324,6 +1325,11 @@ mfxStatus ParseVPPCmdLine(msdk_char *argv[], mfxU32 argc, mfxU32& index, Transco
         params->DecoderFourCC = MFX_FOURCC_RGB4;
         return MFX_ERR_NONE;
     }
+    else if (0 == msdk_strcmp(argv[index], MSDK_STRING("-dc::rgbp")))
+    {
+        params->DecoderFourCC = MFX_FOURCC_RGBP;
+        return MFX_ERR_NONE;
+    }
     else if (0 == msdk_strcmp(argv[index], MSDK_STRING("-dc::yuy2")))
     {
         params->DecoderFourCC = MFX_FOURCC_YUY2;
@@ -1446,14 +1452,14 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
                 INFER_PAR_OFFLINE,
                 INFER_PAR_DEVICE,
                 INFER_PAR_INTERVAL,
-                INFER_PAR_MAX_DETECT
+                INFER_PAR_MAX_DETECT,
+                INFER_PAR_REMOTE_BLOB,
             } inferParType;
 
             if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("fd"), msdk_strlen(MSDK_STRING("fd")))) //Face detection
             {
                 InputParams.InferType = MediaInferenceManager::InferTypeFaceDetection;
                 inferParType = INFER_PAR_MODEL;
-                msdk_printf(MSDK_STRING("Inference: Face Detection. Model directory %s \n"), argv[i+1]);
             }
             else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("hp"), msdk_strlen(MSDK_STRING("hp")))) //Human Pose
             {
@@ -1485,6 +1491,12 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
             {
                 inferParType = INFER_PAR_MAX_DETECT;
             }
+            else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("remote_blob"), msdk_strlen(MSDK_STRING("remote_blob")))) 
+            {
+                inferParType = INFER_PAR_REMOTE_BLOB;
+                InputParams.InferRemoteBlob = true;
+                msdk_printf(MSDK_STRING("Remote Blob is enabled\n"));
+            }
             else
             {
                 msdk_printf(MSDK_STRING("error: Inference option only support fd(face detection) or hf(human pose), or offline(not rendering results)\n"));
@@ -1511,9 +1523,13 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
                     {
                         InputParams.InferDevType = MediaInferenceManager::InferDeviceGPU;
                     }
+                    else if (0 == msdk_strncmp(MSDK_STRING("CPU"), argv[i], msdk_strlen(MSDK_STRING("HDDL"))))
+                    {
+                        InputParams.InferDevType = MediaInferenceManager::InferDeviceCPU;
+                    }
                     else
                     {
-                        msdk_printf(MSDK_STRING("error: only HDDL and GPU are supported as target inference device\n"));
+                        msdk_printf(MSDK_STRING("error: only HDDL, GPU and CPU are supported as target inference device\n"));
                         return  MFX_ERR_UNSUPPORTED;
                     }
                     break;
@@ -1536,6 +1552,7 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
                     }
                     break;
                 case INFER_PAR_OFFLINE:
+                case INFER_PAR_REMOTE_BLOB:
                     break;
                 default:
                     msdk_printf(MSDK_STRING("error: Inference option only supports fd(face detection) or hf(human pose), offline(not rendering results, device <target_device>, interval, and max_detect <number>)\n"));
@@ -2091,7 +2108,9 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
             }
             /* This is can init early */
             if (InputParams.eModeExt == Native)
+            {
                 InputParams.eModeExt = FakeSink;
+            }
         }
 #if defined(LIBVA_X11_SUPPORT)
         else if (0 == msdk_strcmp(argv[i], MSDK_STRING("-rx11")))
