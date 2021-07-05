@@ -20,6 +20,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include "human_pose_estimator.hpp"
 #include "vehicle_detect.hpp"
 #include "object_detect.hpp"
+#include "e2e_sample_infer_def.h"
+#include "multi_object_tracker.hpp"
 
 using namespace human_pose_estimation;
 
@@ -33,18 +35,13 @@ public:
     enum InferDeviceType {InferDeviceGPU, InferDeviceCPU, InferDeviceHDDL };
 
     int Init(int dec_w, int dec_h, int infer_type, const char *model_dir,
-            enum InferDeviceType device, int maxObjNum, bool remoteBlob, VADisplay vaDpy);
+            enum InferDeviceType device, int inferInterval, int maxObjNum, bool remoteBlob, VADisplay vaDpy);
     int GetInferInterval();
     /* If inferOffline is true, the results won't be render to input surface */
     int RunInfer(mfxFrameData *data, bool inferOffline);
     int RunInfer(mfxFrameData *data, mfxFrameData *data_dec, bool inferOffline, int decSurfPitch);
     int RenderRepeatLast(mfxFrameData *data);
     int RenderRepeatLast(mfxFrameData *pData, bool isGrey, int decSurfPitch);
-
-    const static int InferTypeNone = 0;
-    const static int InferTypeFaceDetection = 1;
-    const static int InferTypeHumanPoseEst = 2;
-    const static int InferTypeVADetect = 3;
 
 private:
     MediaInferenceManager(MediaInferenceManager const&);
@@ -65,6 +62,12 @@ private:
     int RunInferVDVA(mfxFrameData *pData, bool inferOffline);
     int RenderRepeatLastVD(mfxFrameData *pData);
 
+    int InitMultiObjectTracker(const char* model_dir);
+    int RunInferMOT(mfxFrameData* pData, bool inferOffline);
+    int RenderRepeatLastMOT(mfxFrameData* pData);
+
+
+
     int mInferType;
     int mDecW;
     int mDecH;
@@ -83,6 +86,7 @@ private:
     /*Face Detection*/
     ObjectDetect *mObjectDetector = nullptr;
     std::vector<ObjectDetectResult> mFDResults;
+    std::vector<DetectionObject> mYoloResults;
 
     /*Human Pose Estimation*/
     HumanPoseEstimator *mHPEstimator = nullptr;
@@ -91,5 +95,8 @@ private:
     /*Vehicle and Vehicle attributes detection*/
     VehicleDetect *mVehicleDetector = nullptr;
     std::vector<VehicleDetectResult> mVDResults;
+
+    /*Multi object Tracker*/
+    MultiObjectTracker *mMultiObjectTracker = nullptr;
 };
 

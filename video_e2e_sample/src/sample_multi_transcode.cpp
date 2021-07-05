@@ -36,6 +36,7 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #endif
 
 #include <future>
+#include <stdlib.h>
 using namespace std;
 using namespace TranscodingSample;
 
@@ -301,6 +302,20 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
         m_pAllocParam.reset(new SysMemAllocatorParams);
     }
 
+    uint sinkNum = 0;
+    for (i = 0; i < m_InputParamsArray.size(); i++)
+    {
+        if (Source == m_InputParamsArray[i].eMode) 
+        {
+            sinkNum++;
+        }
+    }
+
+    m_sinkNum = sinkNum;
+    m_sourceNum = m_InputParamsArray.size() - sinkNum;
+    uint cur_sink = 0;
+    msdk_printf(MSDK_STRING("Sink Sessions num %d:  source num %d\n"), sinkNum, m_sourceNum);
+ 
     // each pair of source and sink has own safety buffer
     sts = CreateSafetyBuffers();
     MSDK_CHECK_STATUS(sts, "CreateSafetyBuffers failed");
@@ -339,7 +354,9 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
         m_pExtBSProcArray.push_back(new FileBitstreamProcessor);
 
         pThreadPipeline->pPipeline.reset(CreatePipeline());
+#ifdef ENABLE_INFERENCE
         pThreadPipeline->pPipeline->SetVADisplayHandle(vaDpy);
+#endif
 
 #if (defined(_WIN32) || defined(_WIN64)) && (MFX_VERSION >= 1031)
         pThreadPipeline->pPipeline->SetPrefferiGfx(m_InputParamsArray[i].bPrefferiGfx);
@@ -403,46 +420,58 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
         sts = m_pExtBSProcArray.back()->SetWriter(writer);
         MSDK_CHECK_STATUS(sts, "m_pExtBSProcArray.back()->SetWriter failed");
 
-        if (Sink == m_InputParamsArray[i].eMode)
+        SafetySurfaceBuffer **pBufferArray = nullptr;
+        m_InputParamsArray[i].sinkNum = m_sinkNum;
+        m_InputParamsArray[i].sourceNum = m_sourceNum;
+        if (m_sinkNum >= 1)
         {
-            /* N_to_1 mode */
-            if ((VppComp == m_InputParamsArray[i].eModeExt) ||
-                (VppCompOnly == m_InputParamsArray[i].eModeExt))
+            if (Sink == m_InputParamsArray[i].eMode)
             {
-                // Taking buffers from tail because they are stored in m_pBufferArray in reverse order
-                // So, by doing this we'll fill buffers properly according to order from par file
-                pBuffer = m_pBufferArray[m_pBufferArray.size()-1-BufCounter];
-                BufCounter++;
-                msdk_printf(MSDK_STRING("sink n to 1\n"));
+                pBufferArray = new SafetySurfaceBuffer * [m_sinkNum];
+                
+                /* N_to_1 mode */
+                if ((VppComp == m_InputParamsArray[i].eModeExt) ||
+                        (VppCompOnly == m_InputParamsArray[i].eModeExt))
+                {
+                    std::cout<<std::endl;
+                    // Taking buffers from tail because they are stored in m_pBufferArray in reverse order
+                    // So, by doing this we'll fill buffers properly according to order from par file
+                    for (uint j = 0; j < m_sinkNum; j++)
+                    {
+                        pBufferArray[j] = m_pBufferArray[m_sourceNum * (j + 1) - BufCounter - 1];
+                    }
+                    msdk_printf(MSDK_STRING("sink n to 1\n"));
+                    BufCounter++;
+                }
+                else /* 1_to_N mode*/
+                {
+                    pBufferArray[0] = m_pBufferArray[m_pBufferArray.size() - 1];
+                    msdk_printf(MSDK_STRING("sink 1 to n\n"));
+                }
+                pSinkPipeline = pThreadPipeline->pPipeline.get();
             }
-            else /* 1_to_N mode*/
+            else if (Source == m_InputParamsArray[i].eMode)
             {
-                pBuffer = m_pBufferArray[m_pBufferArray.size() - 1];
-                msdk_printf(MSDK_STRING("sink 1 to n\n"));
+                pBufferArray = new SafetySurfaceBuffer * [1];
+                /* N_to_1 mode */
+                if ((VppComp == m_InputParamsArray[i].eModeExt) ||
+                        (VppCompOnly == m_InputParamsArray[i].eModeExt) ||
+                        (FakeSink == m_InputParamsArray[i].eModeExt))
+                {
+                    pBufferArray[0] = m_pBufferArray[m_sourceNum - 1 + m_sourceNum * cur_sink];
+                    msdk_printf(MSDK_STRING("source n to 1\n"));
+                    cur_sink++;
+                }
+                else /* 1_to_N mode*/
+                {
+                    pBufferArray[0] = m_pBufferArray[BufCounter];
+                    BufCounter++;
+                    msdk_printf(MSDK_STRING("source 1 to n\n"));
+                }
             }
-            pSinkPipeline = pThreadPipeline->pPipeline.get();
+            
         }
-        else if (Source == m_InputParamsArray[i].eMode)
-        {
-            /* N_to_1 mode */
-            if ((VppComp == m_InputParamsArray[i].eModeExt) ||
-                (VppCompOnly == m_InputParamsArray[i].eModeExt) ||
-                (FakeSink == m_InputParamsArray[i].eModeExt))
-            {
-                pBuffer = m_pBufferArray[m_pBufferArray.size() - 1];
-                msdk_printf(MSDK_STRING("source n to 1\n"));
-            }
-            else /* 1_to_N mode*/
-            {
-                pBuffer = m_pBufferArray[BufCounter];
-                BufCounter++;
-                msdk_printf(MSDK_STRING("source 1 to n\n"));
-            }
-        }
-        else
-        {
-            pBuffer = NULL;
-        }
+        
 
         /**/
         /* Vector stored linearly in the memory !*/
@@ -463,7 +492,7 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
                                                    m_pAllocArray[i],
                                                    hdl,
                                                    pSinkPipeline,
-                                                   pBuffer,
+                                                   pBufferArray,
                                                    m_pExtBSProcArray.back());
         }
         else
@@ -478,7 +507,7 @@ mfxStatus Launcher::Init(int argc, msdk_char *argv[])
                                                     m_pAllocArray[i],
                                                     hdl,
                                                     pParentPipeline,
-                                                    pBuffer,
+                                                    pBufferArray,
                                                     m_pExtBSProcArray.back());
         }
 
@@ -1141,26 +1170,59 @@ mfxStatus Launcher::CreateSafetyBuffers()
     SafetySurfaceBuffer* pBuffer     = NULL;
     SafetySurfaceBuffer* pPrevBuffer = NULL;
 
-    for (mfxU32 i = 0; i < m_InputParamsArray.size(); i++)
+    if (m_sinkNum >= 2)
     {
-        /* this is for 1 to N case*/
-        if ((Source == m_InputParamsArray[i].eMode) &&
-            (Native == m_InputParamsArray[0].eModeExt))
+        for (uint j = 0; j < m_sinkNum; j++)
         {
-            pBuffer = new SafetySurfaceBuffer(pPrevBuffer);
-            pPrevBuffer = pBuffer;
-            m_pBufferArray.push_back(pBuffer);
-        }
+            SafetySurfaceBuffer* pBuffer     = NULL;
+            SafetySurfaceBuffer* pPrevBuffer = NULL;
+            for (mfxU32 i = 0; i < (m_sourceNum + 1); i++)
+            {
+                /* this is for 1 to N case*/
+                if ((Source == m_InputParamsArray[i].eMode) &&
+                        (Native == m_InputParamsArray[0].eModeExt))
+                {
+                    pBuffer = new SafetySurfaceBuffer(pPrevBuffer);
+                    pPrevBuffer = pBuffer;
+                    m_pBufferArray.push_back(pBuffer);
+                }
 
-        /* And N_to_1 case: composition should be enabled!
-         * else it is logic error */
-        if ( (Source != m_InputParamsArray[i].eMode) &&
-             ( (VppComp     == m_InputParamsArray[0].eModeExt) ||
-               (VppCompOnly == m_InputParamsArray[0].eModeExt) ) )
+                /* And N_to_1 case: composition should be enabled!
+                 * else it is logic error */
+                if ( (Source != m_InputParamsArray[i].eMode) &&
+                        ( (VppComp     == m_InputParamsArray[0].eModeExt) ||
+                          (VppCompOnly == m_InputParamsArray[0].eModeExt) ) )
+                {
+                    pBuffer = new SafetySurfaceBuffer(pPrevBuffer);
+                    pPrevBuffer = pBuffer;
+                    m_pBufferArray.push_back(pBuffer);
+                }
+            }
+        }
+    }
+    else
+    {
+        for (mfxU32 i = 0; i < m_InputParamsArray.size(); i++)
         {
-            pBuffer = new SafetySurfaceBuffer(pPrevBuffer);
-            pPrevBuffer = pBuffer;
-            m_pBufferArray.push_back(pBuffer);
+            /* this is for 1 to N case*/
+            if ((Source == m_InputParamsArray[i].eMode) &&
+                    (Native == m_InputParamsArray[0].eModeExt))
+            {
+                pBuffer = new SafetySurfaceBuffer(pPrevBuffer);
+                pPrevBuffer = pBuffer;
+                m_pBufferArray.push_back(pBuffer);
+            }
+
+            /* And N_to_1 case: composition should be enabled!
+             * else it is logic error */
+            if ( (Source != m_InputParamsArray[i].eMode) &&
+                    ( (VppComp     == m_InputParamsArray[0].eModeExt) ||
+                      (VppCompOnly == m_InputParamsArray[0].eModeExt) ) )
+            {
+                pBuffer = new SafetySurfaceBuffer(pPrevBuffer);
+                pPrevBuffer = pBuffer;
+                m_pBufferArray.push_back(pBuffer);
+            }
         }
     }
     return MFX_ERR_NONE;
@@ -1380,6 +1442,15 @@ int set_up_thread_argv(int argc, char *argv[], int par_file_num, char ***argv_po
 
 int main(int argc, char *argv[])
 {
+    string LD_MSDK_PATH = "/opt/intel/svet/msdk/lib";
+    char* ldpathvar = nullptr;
+    if ((ldpathvar = getenv("LD_LIBRARY_PATH"))!= nullptr) {
+        if (strlen(ldpathvar) < LD_MSDK_PATH.length() || strncmp(LD_MSDK_PATH.c_str(), ldpathvar, LD_MSDK_PATH.length()) != 0) {
+            printf("[ERROR] Link to wrong MediaSDK Libraries.\nPlease run 'source ./svet_env_setup.sh' to set up the right environment!\n");
+            return 0;
+        }
+    }
+
     int par_file_num = get_par_file_num(argc, argv);
 
     if (par_file_num <= 1)

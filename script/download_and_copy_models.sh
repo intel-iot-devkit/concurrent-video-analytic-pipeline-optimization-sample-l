@@ -12,7 +12,7 @@ fi
 cd ${INTEL_OPENVINO_DIR}
 cd deployment_tools/tools/model_downloader
 
-model_list="face-detection-retail-0004 human-pose-estimation-0001 vehicle-license-plate-detection-barrier-0106 vehicle-attributes-recognition-barrier-0039" 
+model_list="face-detection-retail-0004 human-pose-estimation-0001 vehicle-license-plate-detection-barrier-0106 vehicle-attributes-recognition-barrier-0039 person-detection-retail-0013 person-reidentification-retail-0288"
 
 for i in $model_list
 do

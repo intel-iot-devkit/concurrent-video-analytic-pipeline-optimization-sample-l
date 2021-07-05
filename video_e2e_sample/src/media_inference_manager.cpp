@@ -27,6 +27,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include "human_pose_estimator.hpp"
 #include "render_human_pose.hpp"
 #include "vaapi_allocator.h"
+#include "e2e_sample_infer_def.h"
 
 #define FDUMP 0
 #define LESS_P 1
@@ -57,6 +58,14 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #define VD_IR_FILE_NAME "vehicle-detection-adas-0002.xml"
 #endif
 
+//Person detection retail
+#define PDR_IR_FILE_PATH "deployment_tools/open_model_zoo/tools/downloader/intel/person-detection-retail-0013/FP16/"
+#define PDR_IR_FILE_NAME "person-detection-retail-0013.xml"
+
+//Person reidentification retail
+#define PREIDR_IR_FILE_PATH "deployment_tools/open_model_zoo/tools/downloader/intel/person-reidentification-retail-0288/FP16/"
+#define PREIDR_IR_FILE_NAME "person-reidentification-retail-0288.xml"
+
 #define IR_PATH_MAX_LEN 1024
 
 using namespace cv;
@@ -66,9 +75,10 @@ MediaInferenceManager::MediaInferenceManager():
     mTargetDevice("GPU"),
     mMaxObjNum(-1),
     mRemoteBlob(false),
-    mVADpy(nullptr)
+    mVADpy(nullptr),
+    mInit(false)
 {
-    mInit = false;
+
 }
 
 MediaInferenceManager::~MediaInferenceManager()
@@ -79,11 +89,13 @@ MediaInferenceManager::~MediaInferenceManager()
     mObjectDetector = nullptr;
     delete mVehicleDetector;
     mVehicleDetector = nullptr;
+    delete mMultiObjectTracker;
+    mMultiObjectTracker = nullptr;
 }
 
 int MediaInferenceManager::Init(int dec_w, int dec_h,
         int infer_type, const char *model_dir,
-        enum InferDeviceType device, int maxObjNum,
+        enum InferDeviceType device, int inferInterval, int maxObjNum,
         bool remoteBlob, VADisplay vaDpy)
 {
     int ret = 0;
@@ -91,6 +103,7 @@ int MediaInferenceManager::Init(int dec_w, int dec_h,
     mDecW = dec_w;
     mDecH = dec_h;
     mMaxObjNum = maxObjNum;
+    mInferInterval = inferInterval;
 
     if (remoteBlob && (!vaDpy))
     {
@@ -118,6 +131,7 @@ int MediaInferenceManager::Init(int dec_w, int dec_h,
     switch(mInferType)
     {
         case InferTypeFaceDetection:
+        case InferTypeYolo:
             ret = InitFaceDetection(model_dir);
             break;
         case InferTypeHumanPoseEst:
@@ -125,6 +139,9 @@ int MediaInferenceManager::Init(int dec_w, int dec_h,
             break;
         case InferTypeVADetect:
             ret = InitVehicleDetect(model_dir);
+            break;
+        case InferTypeMOTracker:
+            ret = InitMultiObjectTracker(model_dir);
             break;
         default:
             msdk_printf(MSDK_STRING("ERROR:Unsupported inference type %d\n"), mInferType);
@@ -167,6 +184,7 @@ int MediaInferenceManager::RunInfer(mfxFrameData *pData, bool inferOffline)
     switch(mInferType)
     {
         case InferTypeFaceDetection:
+        case InferTypeYolo:
             RunInferFD(pData, inferOffline);
             break;
         case InferTypeHumanPoseEst:
@@ -174,6 +192,9 @@ int MediaInferenceManager::RunInfer(mfxFrameData *pData, bool inferOffline)
             break;
         case InferTypeVADetect:
             RunInferVDVA(pData, inferOffline);
+            break;
+        case InferTypeMOTracker:
+            RunInferMOT(pData, inferOffline);
             break;
         default:
             msdk_printf(MSDK_STRING("ERROR:Unsupported inference type %d\n"), mInferType);
@@ -210,6 +231,7 @@ int MediaInferenceManager::RenderRepeatLast(mfxFrameData *pData)
     switch(mInferType)
     {
         case InferTypeFaceDetection:
+        case InferTypeYolo:
             RenderRepeatLastFD(pData);
             break;
         case InferTypeHumanPoseEst:
@@ -217,6 +239,9 @@ int MediaInferenceManager::RenderRepeatLast(mfxFrameData *pData)
             break;
         case InferTypeVADetect:
             RenderRepeatLastVD(pData);
+            break;
+        case InferTypeMOTracker:
+            RenderRepeatLastMOT(pData);
             break;
         default:
             msdk_printf(MSDK_STRING("ERROR:Unsupported inference type %d\n"), mInferType);
@@ -228,23 +253,36 @@ int MediaInferenceManager::RenderRepeatLast(mfxFrameData *pData)
 
 int MediaInferenceManager::RenderRepeatLastFD(mfxFrameData *pData, bool isGrey, int decSurfPitch)
 {
-    if (mObjectDetector && ( mFDResults.size() > 0)){
-        if (isGrey)
-        {
-            if (decSurfPitch < mDecW)
-            {
-                std::cout<<"MediaInferenceManager::RenderRepeatLastFD: Wrong pitch size "<<decSurfPitch<<std::endl;
-                return -1;
-            }
-            Mat frameY(mDecH, decSurfPitch, CV_8UC1, (unsigned char *)pData->Y);
-            mObjectDetector->RenderResults(mFDResults, frameY, true);
-        }
-        else
-        {
-            Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pData->B);
 
-            mObjectDetector->RenderResults(mFDResults, frameRGB4);
-        }
+    switch (mInferType)
+    {
+        case InferTypeYolo:
+            if (mObjectDetector && ( mYoloResults.size() > 0)){
+
+                Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pData->B);
+                mObjectDetector->RenderResults(mYoloResults, frameRGB4);
+            }
+            break;
+        default:
+            if (mObjectDetector && ( mFDResults.size() > 0)){
+                if (isGrey)
+                {
+                    if (decSurfPitch < mDecW)
+                    {
+                        std::cout<<"MediaInferenceManager::RenderRepeatLastFD: Wrong pitch size "<<decSurfPitch<<std::endl;
+                        return -1;
+                    }
+                    Mat frameY(mDecH, decSurfPitch, CV_8UC1, (unsigned char *)pData->Y);
+                    mObjectDetector->RenderResults(mFDResults, frameY, true);
+                }
+                else
+                {
+                    Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pData->B);
+
+                    mObjectDetector->RenderResults(mFDResults, frameRGB4);
+                }
+            }
+            break;
     }
     return 0;
 }
@@ -264,6 +302,15 @@ int MediaInferenceManager::RenderRepeatLastVD(mfxFrameData *pData)
     if (mVehicleDetector && ( mVDResults.size() > 0)){
         Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pData->B);
         mVehicleDetector->RenderVDResults(mVDResults, frameRGB4);
+    }
+
+    return 0;
+}
+
+int MediaInferenceManager::RenderRepeatLastMOT(mfxFrameData* pData)
+{
+    if (mMultiObjectTracker) {
+        mMultiObjectTracker->RenderRepeatLast(pData);
     }
 
     return 0;
@@ -346,16 +393,34 @@ int MediaInferenceManager::RunInferFD(mfxFrameData *pData, bool inferOffline)
             cvtColor(frameScl, frame, COLOR_RGBA2RGB);
         }
 
-        if (mFDResults.size() > 0)
+        switch(mInferType)
         {
-            mFDResults.clear();
-        }
-        mObjectDetector->Detect(frame, mFDResults);
+            case InferTypeYolo:
+                if (mYoloResults.size() > 0)
+                {
+                    mYoloResults.clear();
+                }
+                mObjectDetector->Detect(frame, mYoloResults);
 
-        if (!inferOffline)
-        {
-            /* Bounding box */
-            mObjectDetector->RenderResults(mFDResults, frameRGB4);
+                if (!inferOffline)
+                {
+                    /* Bounding box */
+                    mObjectDetector->RenderResults(mYoloResults, frameRGB4);
+                }
+                break;
+            default: 
+                if (mFDResults.size() > 0)
+                {
+                    mFDResults.clear();
+                }
+                mObjectDetector->Detect(frame, mFDResults);
+
+                if (!inferOffline)
+                {
+                    /* Bounding box */
+                    mObjectDetector->RenderResults(mFDResults, frameRGB4);
+                }
+                break;
         }
     }
     else
@@ -389,6 +454,14 @@ int MediaInferenceManager::RunInferVDVA(mfxFrameData *pData, bool inferOffline)
         mVehicleDetector->RenderVDResults(mVDResults, frameRGB4);
     }
 
+    return 0;
+}
+
+int MediaInferenceManager::RunInferMOT(mfxFrameData* pData, bool inferOffline)
+{
+    if (mMultiObjectTracker) {
+        mMultiObjectTracker->RunInfer(pData, inferOffline);
+    }
     return 0;
 }
 
@@ -503,9 +576,30 @@ int MediaInferenceManager::InitFaceDetection(const char *model_dir)
     mBatchId = 1;
 
     mObjectDetector = new ObjectDetect(false);
-    mObjectDetector->Init(ir_file, mTargetDevice, mRemoteBlob, mVADpy);
+    mObjectDetector->Init(ir_file, mInferType, mTargetDevice, mRemoteBlob, mVADpy);
     mObjectDetector->GetInputSize(mInputW, mInputH);
     mObjectDetector->SetSrcImageSize(mDecW, mDecH);
 
+    return 0;
+}
+
+int MediaInferenceManager::InitMultiObjectTracker(const char* modelDir)
+{
+    char detIrFile[IR_PATH_MAX_LEN] = { 0 };
+    char reidIrFile[IR_PATH_MAX_LEN] = { 0 };
+
+    if (0 != GetFullIRPath(modelDir, PDR_IR_FILE_PATH, PDR_IR_FILE_NAME, detIrFile))
+    {
+        return -1;
+    }
+
+    if (0 != GetFullIRPath(modelDir, PREIDR_IR_FILE_PATH, PREIDR_IR_FILE_NAME, reidIrFile))
+    {
+        return -1;
+    }
+
+    mMultiObjectTracker = new MultiObjectTracker();
+    mMultiObjectTracker->Init(detIrFile, reidIrFile, mTargetDevice, mInferInterval, mRemoteBlob, mVADpy);
+    mMultiObjectTracker->SetRenderSize(mDecW, mDecH);
     return 0;
 }

@@ -38,14 +38,14 @@ See [user guide](./doc/concurrent_video_analytic_sample_application_user_guide_2
 # System requirements
 
 **Operating System:**
-* Ubuntu 18.04.02
+* Ubuntu 18.04.05
 
 **Software:**
-* [MediaSDK 20.3.0](https://github.com/Intel-Media-SDK/MediaSDK/releases/tag/intel-mediasdk-20.3.0)
-* [OpenVINO™ 2021.1](https://software.intel.com/en-us/openvino-toolkit)
+* [MediaSDK 21.1.3](https://github.com/Intel-Media-SDK/MediaSDK/releases/tag/intel-mediasdk-21.1.3)
+* [OpenVINO™ 2021.3](https://software.intel.com/en-us/openvino-toolkit)
 
 **Hardware:** 
-* Intel® platforms supported by the MediaSDK 20.3.0 and OpenVINO 2021.1. 
+* Intel® platforms supported by the MediaSDK 21.1.3 and OpenVINO 2021.3. 
 * For Media SDK, the major platform dependency comes from the back-end media driver. https://github.com/intel/media-driver
 * For OpenVINO™, see details from here: https://software.intel.com/en-us/openvino-toolkit/documentation/system-requirements
 
@@ -53,7 +53,7 @@ See [user guide](./doc/concurrent_video_analytic_sample_application_user_guide_2
 
 Run build_and_install.sh to install dependent software packages and build sample application video_e2e_sample. 
 
-Please refer to ”Installation Guide“ in [user guide](./doc/concurrent_video_analytic_sample_application_user_guide_2020.3.0.pdf) for details.
+Please refer to ”Installation Guide“ in [user guide](./doc/concurrent_video_analytic_sample_application_user_guide.pdf) for details.
 
 ## Build steps
 
@@ -68,7 +68,16 @@ cd cva_sample
 ```
 This script will install the dependent software packages by running command "apt install". So it will ask for sudo password. Then it will download libva, libva-util, media-driver and MediaSDK source code and install these libraries. It might take 10 to 20 minutes depending on the network bandwidth.
 
-After the script finishing, the sample application video_e2e_sample can be found under ./bin. Please refer to "Run sample application" in [user guide](./doc/concurrent_video_analytic_sample_application_user_guide_2020.3.0.pdf) for details.
+After the script finishing, the sample application video_e2e_sample can be found under ./bin.
+
+In order to enable the media SDK installed by SVET to coexist with different versions of media SDK installed on the same computer, we suggest (we have done so in our build script) that the media SDK environment variables of SVET should only be set in the current bash, not saved to the global system environment.
+So please run 'source ./svet_env_setup.sh' first when you start a new shell (or change user in shell such as run 'su -') to run ./bin/video_e2e_sample".
+
+```sh
+cd cva_sample
+source ./svet_env_setup.sh
+```
+Please refer to "Run sample application" in [user guide](./doc/concurrent_video_analytic_sample_application_user_guide.pdf) for details.
 
 # Known limitations
 

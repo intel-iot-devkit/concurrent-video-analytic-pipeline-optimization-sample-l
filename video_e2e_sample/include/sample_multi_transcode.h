@@ -100,6 +100,9 @@ namespace TranscodingSample
 
         std::vector<sVppCompDstRect>         m_VppDstRects;
 
+        uint m_sinkNum;    //Number of sink sessions that consume the surface
+        uint m_sourceNum;  //Number of source sessions that produce the surface
+
     private:
         DISALLOW_COPY_AND_ASSIGN(Launcher);
 

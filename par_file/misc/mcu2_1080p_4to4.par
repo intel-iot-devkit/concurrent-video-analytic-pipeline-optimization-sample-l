@@ -1,0 +1,8 @@
+-i::h264 ./video/1080p.h264 -join -hw -async 2  -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator 
+-i::h264 ./video/1080p.h264 -join -hw -async 2  -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 0 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator 
+-i::h264 ./video/1080p.h264 -join -hw -async 2  -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 540 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator 
+-i::h264 ./video/1080p.h264 -join -hw -async 2  -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 540 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator 
+-vpp_comp 4 -w 1920 -h 1080 -async 2 -threads 2 -join -hw  -threads 3 -i::source -ext_allocator -ec::nv12 -o::h264 comp_out_1080p5.h264 -b 4000 -qsv-ff  -dist 1 -num_ref 1
+-vpp_comp 4 -w 1920 -h 1080 -async 2 -threads 2 -join -hw  -threads 3 -i::source -ext_allocator -ec::nv12 -o::h264 comp_out_1080p6.h264 -b 4000 -qsv-ff  -dist 1 -num_ref 1
+-vpp_comp 4 -w 1920 -h 1080 -async 2 -threads 2 -join -hw  -threads 3 -i::source -ext_allocator -ec::nv12 -o::h264 comp_out_1080p7.h264 -b 4000 -qsv-ff  -dist 1 -num_ref 1
+-vpp_comp 4 -w 1920 -h 1080 -async 2 -threads 2 -join -hw  -threads 3 -i::source -ext_allocator -ec::nv12 -o::h264 comp_out_1080p8.h264 -b 4000 -qsv-ff  -dist 1 -num_ref 1

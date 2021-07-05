@@ -17,10 +17,10 @@ libva_file_list="../COPYING drm/va_drm.h \
         x11/va_dri2.h x11/va_dricommon.h \
         glx/va_backend_glx.h glx/va_glx.h \
         libva.la libva-drm.la libva-x11.la libva-glx.la \
-        .libs/libva.so.2.900.0  .libs/libva.lai \
-        .libs/libva-drm.so.2.900.0T .libs/libva-drm.lai  \
-        .libs/libva-x11.so.2.900.0T .libs/libva-x11.lai  \
-        .libs/libva-glx.so.2.900.0T .libs/libva-glx.lai  \
+        .libs/libva.so.2.1100.0  .libs/libva.lai \
+        .libs/libva-drm.so.2.1100.0T .libs/libva-drm.lai  \
+        .libs/libva-x11.so.2.1100.0T .libs/libva-x11.lai  \
+        .libs/libva-glx.so.2.1100.0T .libs/libva-glx.lai  \
          va.h va_backend.h va_backend_vpp.h va_compat.h \
         va_dec_av1.h va_dec_hevc.h va_dec_jpeg.h va_dec_vp8.h \
         va_dec_vp9.h va_drmcommon.h va_egl.h va_enc_hevc.h \
@@ -78,7 +78,7 @@ if [ $? != 0 ]; then
 fi
 
 cp __bin/release/libmfx.pc  $msdk_release_dir/lib/pkgconfig/mfx.pc
-cp __bin/release/libmfxhw64.so  $msdk_release_dir/lib/libmfxhw64.so.1.34 
+cp __bin/release/libmfxhw64.so  $msdk_release_dir/lib/libmfxhw64.so.1.35 
 cp __lib/release/libvpp_plugin.a $msdk_release_dir/share/mfx/samples/
 
 sample_bin="sample_decode sample_encode sample_fei sample_multi_transcode"
@@ -103,10 +103,11 @@ cd $root_path
 cp $root_path/script/install_binary.sh  $release_folder/
 cp $root_path/script/download_and_copy_models.sh   $release_folder/
 cp $root_path/script/run_face_detection_test.sh $release_folder/
+cp $root_path/svet_env_setup.sh $release_folder/
 
 mkdir -p $release_folder/par_file
 cp par_file/inference/n16_face_detection_1080p.par $release_folder/par_file/
-cp par_file/inference/n4_human_pose_1080p.par $release_folder/par_file/ 
+cp par_file/inference/n4_human_pose_1080p.par $release_folder/par_file/
 cp par_file/inference/n4_vehicel_detect_1080p.par  $release_folder/par_file/
 echo "libva, media-driver, MediaSDK and SVET sample application binaries have been copied to $release_folder"
 echo "Done"

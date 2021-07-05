@@ -1,7 +1,7 @@
 # Frequently asked questions (SVET sample application)
 
 ## Where can I find the descritpion of options used in par file?
-See chapter 2.4 in doc/svet_sample_application_user_guide_2020.1.0.pdf
+See chapter 2.4 in doc/svet_sample_application_user_guide_2021.1.0.pdf
 Running the SVET sample applicton with option "-?" can show the usage of options.
 
 ## Why does the system need to be switched to text console mode before running the sample application
@@ -44,7 +44,7 @@ It can be caused by the decoded frames aren't fed to inference engine efficientl
 Please refer to https://github.com/opencv/open_model_zoo/tree/master/models/intel. The names of models used in sample application are
 face-detection-retail-0004, human-pose-estimation-0001, vehicle-attributes-recognition-barrier-0039, vehicle-license-plate-detection-barrier-0106.
 
-## Can I use other OpenVINO version rather than 2020.3 ?
+## Can I use other OpenVINO version rather than 2021.3 ?
 Yes, but you have to modify some code due to interfaces changing. And also you need to download the IR files and copy them to ./model manually. Please refer to script/download_and_copy_models.sh for how to download the IR files.
 
 ## When run 4 channel decode plus inference and display on APL, the CPU occupy ratio is very high and fps is low

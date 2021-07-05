@@ -55,7 +55,8 @@ int NetworkInfo::Init(const std::string &modelPath, const std::string &device, c
     DataPtr& output = outputInfo.begin()->second;
 
     output->setPrecision(Precision::FP32);
-    output->setLayout(Layout::NCHW);
+
+    //output->setLayout(Layout::NCHW);
 
     if (opt.enableRemoteBlob)
     {

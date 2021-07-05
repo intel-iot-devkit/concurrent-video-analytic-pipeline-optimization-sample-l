@@ -50,8 +50,8 @@ GLOBAL_LOGLEVEL=3
 def print_info( msg, loglevel ):
     global GLOBAL_LOGLEVEL
 
-    """ printing information """    
-    
+    """ printing information """
+
     if loglevel==loglevelcode.ERROR and GLOBAL_LOGLEVEL>=0:
         color = diagnostic_colors.ERROR
         msgtype=" [ ERROR ] "
@@ -75,18 +75,18 @@ def run_cmd(cmd):
     return output
 
 def fnParseCommandline():
-    if len(sys.argv) == 1:		
+    if len(sys.argv) == 1:
         return "-all"
     elif len(sys.argv) > 3:
         return "not support"
         exit(0)
-	
+
     if sys.argv[1] == "-h":
-        print "[%s" % sys.argv[0] + " usage]"
-        print "\t -h: display help"
-        print "\t -all: install all components"
-        print "\t -b BUILD_TARGET: build all components"
-        print "\t -m : build msdk only"
+        print("[%s" % sys.argv[0] + " usage]")
+        print( "\t -h: display help")
+        print( "\t -all: install all components")
+        print( "\t -b BUILD_TARGET: build all components")
+        print( "\t -m : build msdk only")
 
         exit(0)
 
@@ -94,12 +94,17 @@ def fnParseCommandline():
 
 if __name__ == "__main__":
 
+    LIBVA_INSTALL_PREFIX="/opt/intel/svet/msdk"
+    LIBVA_INSTALL_PATH=LIBVA_INSTALL_PREFIX+"/lib"
+    LIBVA_DRIVERS_PATH=LIBVA_INSTALL_PATH+"/dri"
+    LIBVA_DRIVER_NAME="iHD"
+
     WORKING_DIR=run_cmd("pwd").strip()
     msg_tmp = "Working directory: " + WORKING_DIR
     print_info(msg_tmp, loglevelcode.INFO)
 
     BUILD_TARGET=""
-    build_msdk = False 
+    build_msdk = False
     build_all = False
 
     cmd = fnParseCommandline()
@@ -108,7 +113,7 @@ if __name__ == "__main__":
         BUILD_TARGET=sys.argv[2]
         build_all = True
         pre_install = False
-        print "BUILD_TARGET=", BUILD_TARGET
+        print("BUILD_TARGET=", BUILD_TARGET)
     elif cmd == "-m":
         print_info("Build MSDK", loglevelcode.INFO)
         build_msdk = True
@@ -116,135 +121,156 @@ if __name__ == "__main__":
     else:
         pre_install = True
 
-        
+
     if pre_install == True:
-        print ""
-        print "************************************************************************"
+        print("")
+        print("************************************************************************")
         print_info("Install required tools and create build environment.", loglevelcode.INFO)
-        print "************************************************************************"
-       
+        print("************************************************************************")
+
         # Install the necessary tools
-        
-        print "Please input the sudo password to proceed\n"
-        cmd ="sudo apt-get -y install git libssl-dev dh-autoreconf cmake libgl1-mesa-dev libpciaccess-dev build-essential curl imagemagick unzip yasm libjpeg-dev libavcodec-dev libavutil-dev libavformat-dev;"
-        cmd+="sudo apt-get -y install coreutils checkinstall pkg-config opencl-clhpp-headers opencl-c-headers ocl-icd-opencl-dev"
+
+        print_info("Please input the sudo password to proceed", loglevelcode.INFO)
+        cmd ="sudo apt-get -y install git libssl-dev dh-autoreconf cmake libgl1-mesa-dev libpciaccess-dev build-essential curl unzip libavcodec-dev libavutil-dev libavformat-dev;"
+        cmd+="sudo apt-get -y install coreutils pkg-config opencl-clhpp-headers opencl-c-headers ocl-icd-opencl-dev"
         os.system(cmd)
 
-        print ""
-        print "************************************************************************"
+        print("")
+        print("************************************************************************")
         print_info("Pull all the source code.", loglevelcode.INFO)
-        print "************************************************************************"
+        print("************************************************************************")
 
         # Pull all the source code
-        print "libva"
+        print("libva")
         if not os.path.exists("%s/libva"%(WORKING_DIR)):
-            cmd = "cd %s; rm -f libva.tar.gz; wget https://github.com/intel/libva/archive/2.9.0.tar.gz -O libva.tar.gz;"%(WORKING_DIR) 
+            cmd = "cd %s; rm -f libva.tar.gz; wget https://github.com/intel/libva/archive/2.11.0.tar.gz -O libva.tar.gz;"%(WORKING_DIR)
             cmd+= "tar zxf libva.tar.gz --one-top-level=libva --strip-components 1"
-            print cmd
+            print(cmd)
             os.system(cmd);
 
-        print "libva-utils"
+        print("libva-utils")
         if not os.path.exists("%s/libva-utils"%(WORKING_DIR)):
             cmd = "cd %s;rm -f libva-utils.tar.gz;"%(WORKING_DIR)
-            cmd += "wget https://github.com/intel/libva-utils/archive/2.9.1.tar.gz -O libva-utils.tar.gz;"
+            cmd += "wget https://github.com/intel/libva-utils/archive/2.11.1.tar.gz -O libva-utils.tar.gz;"
             cmd += "tar zxf libva-utils.tar.gz --one-top-level=libva-utils --strip-components 1;"
-            print cmd
+            print(cmd)
             os.system(cmd);
 
-        print "media-driver"
-        if not os.path.exists("%s/media-driver"%(WORKING_DIR)): 
-            cmd = "cd %s; rm -f intel-media-20.3.0.tar.gz;"%(WORKING_DIR)
-            cmd += "wget https://github.com/intel/media-driver/archive/intel-media-20.3.0.tar.gz; "
-            cmd += "tar zxf intel-media-20.3.0.tar.gz --one-top-level=media-driver --strip-components 1"
-            print cmd
+        print("media-driver")
+        if not os.path.exists("%s/media-driver"%(WORKING_DIR)):
+            cmd = "cd %s; rm -f intel-media-21.1.3.tar.gz;"%(WORKING_DIR)
+            cmd += "wget https://github.com/intel/media-driver/archive/intel-media-21.1.3.tar.gz; "
+            cmd += "tar zxf intel-media-21.1.3.tar.gz --one-top-level=media-driver --strip-components 1"
+            print(cmd)
             os.system(cmd);
 
-        print "gmmlib"
-        if not os.path.exists("%s/gmmlib"%(WORKING_DIR)): 
-            cmd = "cd %s;rm -f intel-gmmlib-20.3.2.tar.gz; wget https://github.com/intel/gmmlib/archive/intel-gmmlib-20.3.2.tar.gz; "%(WORKING_DIR)
-            cmd += "tar zxf intel-gmmlib-20.3.2.tar.gz --one-top-level=gmmlib --strip-components 1"
-            print cmd
+        print("gmmlib")
+        if not os.path.exists("%s/gmmlib"%(WORKING_DIR)):
+            cmd = "cd %s;rm -f intel-gmmlib-21.1.1.tar.gz; wget https://github.com/intel/gmmlib/archive/intel-gmmlib-21.1.1.tar.gz; "%(WORKING_DIR)
+            cmd += "tar zxf intel-gmmlib-21.1.1.tar.gz --one-top-level=gmmlib --strip-components 1"
+            print(cmd)
             os.system(cmd);
 
-        print "MediaSDK"
-        if not os.path.exists("%s/MediaSDK"%(WORKING_DIR)): 
-            cmd = "cd %s; rm -f intel-mediasdk-20.3.0.tar.gz;  wget https://github.com/Intel-Media-SDK/MediaSDK/archive/intel-mediasdk-20.3.0.tar.gz;"%(WORKING_DIR)
-            cmd+= "tar zxf intel-mediasdk-20.3.0.tar.gz --one-top-level=MediaSDK --strip-components 1"
-            print cmd
+        print("MediaSDK")
+        if not os.path.exists("%s/MediaSDK"%(WORKING_DIR)):
+            cmd = "cd %s; rm -f intel-mediasdk-21.1.3.tar.gz;  wget https://github.com/Intel-Media-SDK/MediaSDK/archive/intel-mediasdk-21.1.3.tar.gz;"%(WORKING_DIR)
+            cmd+= "tar zxf intel-mediasdk-21.1.3.tar.gz --one-top-level=MediaSDK --strip-components 1"
+            print(cmd)
             os.system(cmd);
 
 
     if build_all == True:
-        print ""
-        print "************************************************************************"
+        print("")
+        print("************************************************************************")
         print_info("Build and Install libVA", loglevelcode.INFO)
-        print "************************************************************************"
+        print("************************************************************************")
 
         # Build and install libVA including the libVA utils for vainfo.
-        cmd ="cd %s/libva; "%(WORKING_DIR)
-        cmd+="./autogen.sh --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu; make -j4; sudo make install"
-        print cmd
+        cmd ="export LIBRARY_PATH=%s:$LIBRARY_PATH; "%(LIBVA_INSTALL_PATH)
+        cmd+="cd %s/libva; "%(WORKING_DIR)
+        cmd+="./autogen.sh --prefix=%s --libdir=%s; make -j4; sudo make install"%(LIBVA_INSTALL_PREFIX, LIBVA_INSTALL_PATH)
+        print(cmd)
         os.system(cmd)
 
-        cmd ="cd %s/libva-utils; "%(WORKING_DIR)
-        cmd+="./autogen.sh --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu; make -j4; sudo make install"
-        print cmd
+        cmd ="export PKG_CONFIG_PATH=%s/pkgconfig:$PKG_CONFIG_PATH; "%(LIBVA_INSTALL_PATH)
+        cmd+="export LIBRARY_PATH=%s:$LIBRARY_PATH; "%(LIBVA_INSTALL_PATH)
+        cmd+="export C_INCLUDE_PATH=%s/include:$C_INCLUDE_PATH; "%(LIBVA_INSTALL_PREFIX)
+        cmd+="export CPLUS_INCLUDE_PATH=%s/include:$CPLUS_INCLUDE_PATH; "%(LIBVA_INSTALL_PREFIX)
+        cmd+="cd %s/libva-utils; "%(WORKING_DIR)
+        cmd+="./autogen.sh --prefix=%s --libdir=%s; make -j4; sudo make install"%(LIBVA_INSTALL_PREFIX, LIBVA_INSTALL_PATH)
+        print(cmd)
         os.system(cmd)
 
-        print ""		
-        print "************************************************************************"
+        print("")
+        print("************************************************************************")
         print_info("Build and Install media driver", loglevelcode.INFO)
-        print "************************************************************************"
+        print("************************************************************************")
 
         # Build and install media driver
-        cmd = "mkdir -p %s/gmmlib/build; "%(WORKING_DIR)
+        cmd ="export LIBRARY_PATH=%s:$LIBRARY_PATH; "%(LIBVA_INSTALL_PATH)
+        cmd+= "rm -rf %s/gmmlib/build; "%(WORKING_DIR)
+        cmd+= "mkdir -p %s/gmmlib/build; "%(WORKING_DIR)
         cmd+= "cd %s/gmmlib/build; "%(WORKING_DIR)
-        cmd+= "cmake ../;"
+        cmd+= "cmake ../ -DCMAKE_INSTALL_PREFIX=%s ;"%(LIBVA_INSTALL_PREFIX)
         cmd+= "make -j4;"
         cmd+= "sudo make install;"
-        print cmd
+        print(cmd)
         os.system(cmd)
 
-        cmd = "mkdir -p %s/media_build; "%(WORKING_DIR)
+        cmd ="export PKG_CONFIG_PATH=%s/pkgconfig:$PKG_CONFIG_PATH; "%(LIBVA_INSTALL_PATH)
+        cmd+="export LD_LIBRARY_PATH=%s:$LD_LIBRARY_PATH; "%(LIBVA_INSTALL_PATH)
+        cmd+="export LIBRARY_PATH=%s:$LIBRARY_PATH; "%(LIBVA_INSTALL_PATH)
+        cmd+="export C_INCLUDE_PATH=%s/include:$C_INCLUDE_PATH; "%(LIBVA_INSTALL_PREFIX)
+        cmd+="export CPLUS_INCLUDE_PATH=%s/include:$CPLUS_INCLUDE_PATH; "%(LIBVA_INSTALL_PREFIX)
+        cmd+= "rm -rf %s/media_build; "%(WORKING_DIR)
+        cmd+= "mkdir -p %s/media_build; "%(WORKING_DIR)
         cmd+= "cd %s/media_build; "%(WORKING_DIR)
-        cmd+= "cmake ../media-driver; "
-        cmd+= "make -j4; sudo make install"
-        print cmd
+        cmd+= "cmake ../media-driver -DCMAKE_INSTALL_PREFIX=%s -DLIBVA_INSTALL_PATH=%s; "%(LIBVA_INSTALL_PREFIX, LIBVA_INSTALL_PATH)
+        cmd+= "make -j4; "
+        cmd+= "sudo LD_LIBRARY_PATH=%s:$LD_LIBRARY_PATH LIBRARY_PATH=%s:$LIBRARY_PATH make install; "%(LIBVA_INSTALL_PATH, LIBVA_INSTALL_PATH)
+        print(cmd)
         os.system(cmd)
+
 
     if build_all == True or build_msdk == True:
-        print ""
-        print "************************************************************************"
+        print("")
+        print("************************************************************************")
         print_info("Build and Install Media SDK and samples", loglevelcode.INFO)
-        print "************************************************************************"
+        print("************************************************************************")
 
-        if not os.path.exists("%s/MediaSDK"%(WORKING_DIR)): 
-            print "MediaSDK source code doen't exist!"
-            sys.exit() 
+        if not os.path.exists("%s/MediaSDK"%(WORKING_DIR)):
+            print("MediaSDK source code doen't exist!")
+            sys.exit()
 
         # Build and install Media SDK library and samples
-        cmd ="cd %s/MediaSDK; "%(WORKING_DIR)
+        cmd ="export LIBRARY_PATH=%s:$LIBRARY_PATH; "%(LIBVA_INSTALL_PATH)
+        cmd+="export C_INCLUDE_PATH=%s/include:$C_INCLUDE_PATH; "%(LIBVA_INSTALL_PREFIX)
+        cmd+="export CPLUS_INCLUDE_PATH=%s/include:$CPLUS_INCLUDE_PATH; "%(LIBVA_INSTALL_PREFIX)
+        cmd+="export PKG_CONFIG_PATH=%s/pkgconfig:$PKG_CONFIG_PATH;"%(LIBVA_INSTALL_PATH)
+        cmd+="cd %s/MediaSDK; "%(WORKING_DIR)
+        cmd+="rm -rf build; "
         cmd+="mkdir -p build; "
         cmd+="cd build; "
-        cmd+="cmake ../; "
+        cmd+="cmake ../ -DCMAKE_INSTALL_PREFIX=%s;"%(LIBVA_INSTALL_PREFIX)
         cmd+="make -j4; "
         cmd+="sudo make install; "
-        print cmd
+        print(cmd)
         os.system(cmd)
 
     if pre_install == True:
 
-        if not os.path.exists("%s/MediaSDK"%(WORKING_DIR)): 
-            print "MediaSDK source code doen't exist!"
+        if not os.path.exists("%s/MediaSDK"%(WORKING_DIR)):
+            print("MediaSDK source code doen't exist!")
             sys.exit()
 
-        cmd = "sudo echo '/usr/lib/x86_64-linux-gnu' > /etc/ld.so.conf.d/libdrm-intel.conf; "
-        cmd+= "sudo echo '/usr/lib' >> /etc/ld.so.conf.d/libdrm-intel.conf; "
+        #cmd = "sudo echo '/usr/lib/x86_64-linux-gnu' > /etc/ld.so.conf.d/libdrm-intel.conf; "
+        cmd = "sudo echo '%s' > /etc/ld.so.conf.d/libdrm-intel.conf; "%(LIBVA_INSTALL_PATH)
+        #cmd+= "sudo echo '/usr/lib' >> /etc/ld.so.conf.d/libdrm-intel.conf; "
         cmd+= "sudo ldconfig"
-        print cmd
+        print(cmd)
         os.system(cmd)
 
-        print "************************************************************************"
-        print "    Done, all installation, please reboot system !!! "
-        print "************************************************************************"
+        print("************************************************************************")
+        print("    Done, all installation, please reboot system !!! ")
+        print("************************************************************************")
 

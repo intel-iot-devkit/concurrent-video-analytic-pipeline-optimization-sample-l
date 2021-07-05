@@ -1,42 +1,38 @@
-From db80e1ac821723851c7f2db9a68f6b7ba52bdefc Mon Sep 17 00:00:00 2001
-From: Elaine Wang <elaine.wang@intel.com>
-Date: Fri, 18 Sep 2020 14:08:49 +0800
+From 73686a8dfccc9dd0a7deb7adedbc0632689c1bfd Mon Sep 17 00:00:00 2001
+From: Wang Elaine <elaine.wang@intel.com>
+Date: Mon, 17 May 2021 22:05:41 +0800
 Subject: [PATCH] MSDK: Enable AVC decode SFC RGB4
 
-The patch includes 3 changes:
+The patch includes 2 changes:
 1. Add RGB4 to AVC SFC supported list and add  YUV444 to AVC
-  Chroma supported list and ad
-2. Add extend buffer type MFX_EXTBUFF_DEC_VIDEO_PROCESSING to
-  the copy allowed list.
-3. Remove rotate_opencl from sample/CMakeLists.txt because
+  Chroma supported list
+2. Remove rotate_opencl from sample/CMakeLists.txt because
   compiling this sample can fail on some system.
 
-Signed-off-by: Elaine Wang <elaine.wang@intel.com>
+Signed-off-by: Wang Elaine <elaine.wang@intel.com>
 ---
- _studio/mfx_lib/shared/src/mfx_common_int.cpp | 3 ++-
+ _studio/mfx_lib/shared/src/mfx_common_int.cpp | 2 ++
  samples/CMakeLists.txt                        | 1 -
- samples/sample_common/include/sample_utils.h  | 3 ++-
- 3 files changed, 4 insertions(+), 3 deletions(-)
+ 2 files changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/_studio/mfx_lib/shared/src/mfx_common_int.cpp b/_studio/mfx_lib/shared/src/mfx_common_int.cpp
-index 1f378bca..c3484479 100644
+index 8f246169..77de37d1 100644
 --- a/_studio/mfx_lib/shared/src/mfx_common_int.cpp
 +++ b/_studio/mfx_lib/shared/src/mfx_common_int.cpp
-@@ -224,6 +224,7 @@ mfxStatus CheckFrameInfoCodecs(mfxFrameInfo  *info, mfxU32 codecId, bool isHW)
+@@ -211,6 +211,7 @@ mfxStatus CheckFrameInfoCodecs(mfxFrameInfo  *info, mfxU32 codecId, bool isHW)
          if (info->FourCC != MFX_FOURCC_NV12 &&
              info->FourCC != MFX_FOURCC_P010 &&
              info->FourCC != MFX_FOURCC_NV16 &&
 +            info->FourCC != MFX_FOURCC_RGB4 &&
              info->FourCC != MFX_FOURCC_P210)
-             return MFX_ERR_INVALID_VIDEO_PARAM;
+             MFX_RETURN(MFX_ERR_INVALID_VIDEO_PARAM);
          break;
-@@ -262,7 +263,7 @@ mfxStatus CheckFrameInfoCodecs(mfxFrameInfo  *info, mfxU32 codecId, bool isHW)
-         break;
-     case MFX_CODEC_AVC:
-         if (info->ChromaFormat != MFX_CHROMAFORMAT_YUV420 && info->ChromaFormat != MFX_CHROMAFORMAT_YUV422 &&
--            info->ChromaFormat != MFX_CHROMAFORMAT_YUV400)
-+            info->ChromaFormat != MFX_CHROMAFORMAT_YUV400 && info->ChromaFormat != MFX_CHROMAFORMAT_YUV444)
-             return MFX_ERR_INVALID_VIDEO_PARAM;
+@@ -262,6 +263,7 @@ mfxStatus CheckFrameInfoCodecs(mfxFrameInfo  *info, mfxU32 codecId, bool isHW)
+         MFX_CHECK(   info->ChromaFormat == MFX_CHROMAFORMAT_YUV420
+                   || info->ChromaFormat == MFX_CHROMAFORMAT_YUV422
+                   || info->ChromaFormat == MFX_CHROMAFORMAT_YUV400
++                  || info->ChromaFormat == MFX_CHROMAFORMAT_YUV444
+                   , MFX_ERR_INVALID_VIDEO_PARAM);
          break;
      case MFX_CODEC_HEVC:
 diff --git a/samples/CMakeLists.txt b/samples/CMakeLists.txt
@@ -50,20 +46,6 @@ index b2523d01..457a4df6 100644
 -add_subdirectory(sample_plugins/rotate_opencl)
  add_subdirectory(sample_plugins/vpp_plugin)
  add_subdirectory(metrics_monitor)
-diff --git a/samples/sample_common/include/sample_utils.h b/samples/sample_common/include/sample_utils.h
-index 1dab417e..e87dc164 100644
---- a/samples/sample_common/include/sample_utils.h
-+++ b/samples/sample_common/include/sample_utils.h
-@@ -681,7 +681,8 @@ private:
-             MFX_EXTBUFF_FEI_PPS,
-             MFX_EXTBUFF_FEI_SPS,
-             MFX_EXTBUFF_LOOKAHEAD_CTRL,
--            MFX_EXTBUFF_LOOKAHEAD_STAT
-+            MFX_EXTBUFF_LOOKAHEAD_STAT,
-+            MFX_EXTBUFF_DEC_VIDEO_PROCESSING
-         };
- 
-         auto it = std::find_if(std::begin(allowed), std::end(allowed),
 -- 
 2.17.1
 

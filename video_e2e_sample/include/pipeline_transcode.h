@@ -24,12 +24,13 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#ifdef ENABLE_INFERENCE
 #include <opencv2/opencv.hpp>
 #include <opencv2/photo/photo.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/video/video.hpp>
-
+#endif
 #include "mfxplugin.h"
 #include "mfxplugin++.h"
 
@@ -62,11 +63,15 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #include "plugin_utils.h"
 #include "preset_manager.h"
 
+#ifdef ENABLE_INFERENCE
 #include "media_inference_manager.h"
+#endif
 #include "file_and_rtsp_bitstream_reader.h"
 
 using namespace std;
+#ifdef ENABLE_INFERENCE
 using namespace InferenceEngine;
+#endif
 
 #if (MFX_VERSION >= 1024)
 #include "brc_routines.h"
@@ -219,14 +224,19 @@ namespace TranscodingSample
         msdk_char  strDumpVppCompFile[MSDK_MAX_FILENAME_LEN]; // VPP composition output dump file
         msdk_char  strMfxParamsDumpFile[MSDK_MAX_FILENAME_LEN];
 
+#ifdef ENABLE_INFERENCE
         //Support inference in pipeline
         int InferType; //if > 0, will run inference after decoding
         bool InferOffline; // Default false. If true, the results won't be rendered
-        bool RtspDumpOnly; // No transcoding. Only Rtsp dump is enabled. 
         MediaInferenceManager::InferDeviceType InferDevType; //Target inference device
         int InferMaxObjNum; // The maximum number of detected objects for classification
         int InferInterval; //The distance of two inferenced frames
         bool InferRemoteBlob; //If OpenVINO remote blob is used.
+#endif
+
+        uint sinkNum; //The number of sink encode sessions
+        uint sourceNum; //The number of source decode sessions
+        bool RtspDumpOnly; // No transcoding. Only Rtsp dump is enabled. 
         
         msdk_char  strIRFileDir[MSDK_MAX_FILENAME_LEN]; // directory that contains IR files and label file 
         msdk_char  strRtspSaveFile[MSDK_MAX_FILENAME_LEN]; // save rtsp to local file  
@@ -656,7 +666,7 @@ namespace TranscodingSample
                                MFXFrameAllocator *pMFXAllocator,
                                void* hdl,
                                CTranscodingPipeline *pParentPipeline,
-                               SafetySurfaceBuffer  *pBuffer,
+                               SafetySurfaceBuffer  **pBuffer,
                                FileBitstreamProcessor   *pBSProc);
 
         // frames allocation is suspended for heterogeneous pipeline
@@ -693,7 +703,9 @@ namespace TranscodingSample
         bool IsPrefferiGfx() { return bPrefferiGfx; };
         bool IsPrefferdGfx() { return bPrefferdGfx; };
 #endif
+#ifdef ENABLE_INFERENCE
         void SetVADisplayHandle(VADisplay vaDpy) {mVADpy = vaDpy;}; 
+#endif
     protected:
         virtual mfxStatus CheckRequiredAPIVersion(mfxVersion& version, sInputParams *pParams);
 
@@ -896,6 +908,7 @@ namespace TranscodingSample
         mfxSyncPoint   m_LastDecSyncPoint;
 
         SafetySurfaceBuffer   *m_pBuffer;
+        SafetySurfaceBuffer   **m_pBufferArray;
         CTranscodingPipeline  *m_pParentPipeline;
 
         mfxFrameAllocRequest   m_Request;
@@ -967,6 +980,7 @@ namespace TranscodingSample
         int mInferType; //if > 0, will run inference after decoding
         int mInferOffline; // If true, the results won't be rendered
         msdk_char  mStrIRFileDir[MSDK_MAX_FILENAME_LEN]; // directory that contains IR files and label file
+#ifdef ENABLE_INFERENCE
         MediaInferenceManager mInferMnger;
         MediaInferenceManager::InferDeviceType mInferDevType;
         int mInferMaxObjNum;  // The maximum number of detected objects for classification
@@ -976,6 +990,10 @@ namespace TranscodingSample
         bool mRemoteBlob; //If OpenVINO remote blob is enabled
         bool mInferRGBP; //Decode output is in RGBP format and no csc is needed.
         VADisplay mVADpy;
+#endif
+        int mNumSurf4Comp; //Number of input surfaces for N to 1 composition
+        uint m_sinkNum;    //Number of sink sessions that consume the surface 
+        uint m_sourceNum;  //Number of source sessions that produce the surface
     private:
         DISALLOW_COPY_AND_ASSIGN(CTranscodingPipeline);
 

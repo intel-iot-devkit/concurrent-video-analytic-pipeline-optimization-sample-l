@@ -29,27 +29,94 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #include "object_detect.hpp"
 #include "sample_defs.h"
+#include "e2e_sample_infer_def.h"
 
 using namespace InferenceEngine;
 using namespace cv;
 
+static int EntryIndex(int side, int lcoords, int lclasses, int location, int entry) {
+    int n = location / (side * side);
+    int loc = location % (side * side);
+    return n * side * side * (lcoords + lclasses + 1) + entry * side * side + loc;
+}
+
+double IntersectionOverUnion(const DetectionObject &box_1, const DetectionObject &box_2) {
+    double width_of_overlap_area = fmin(box_1.xmax, box_2.xmax) - fmax(box_1.xmin, box_2.xmin);
+    double height_of_overlap_area = fmin(box_1.ymax, box_2.ymax) - fmax(box_1.ymin, box_2.ymin);
+    double area_of_overlap;
+    if (width_of_overlap_area < 0 || height_of_overlap_area < 0)
+        area_of_overlap = 0;
+    else
+        area_of_overlap = width_of_overlap_area * height_of_overlap_area;
+    double box_1_area = (box_1.ymax - box_1.ymin)  * (box_1.xmax - box_1.xmin);
+    double box_2_area = (box_2.ymax - box_2.ymin)  * (box_2.xmax - box_2.xmin);
+    double area_of_union = box_1_area + box_2_area - area_of_overlap;
+    return area_of_overlap / area_of_union;
+}
+
+void ParseYOLOV3Output(const YoloParams &params, const std::string & output_name,
+                       const Blob::Ptr &blob, const unsigned long resized_im_h,
+                       const unsigned long resized_im_w, const unsigned long original_im_h,
+                       const unsigned long original_im_w,
+                       const double threshold, std::vector<DetectionObject> &objects) {
+
+    const int out_blob_h = static_cast<int>(blob->getTensorDesc().getDims()[2]);
+    const int out_blob_w = static_cast<int>(blob->getTensorDesc().getDims()[3]);
+    if (out_blob_h != out_blob_w)
+        throw std::runtime_error("Invalid size of output " + output_name +
+        " It should be in NCHW layout and H should be equal to W. Current H = " + std::to_string(out_blob_h) +
+        ", current W = " + std::to_string(out_blob_h));
+
+    auto side = out_blob_h;
+    auto side_square = side * side;
+    LockedMemory<const void> blobMapped = as<MemoryBlob>(blob)->rmap();
+    const float *output_blob = blobMapped.as<float *>();
+    // --------------------------- Parsing YOLO Region output -------------------------------------
+    for (int i = 0; i < side_square; ++i) {
+        int row = i / side;
+        int col = i % side;
+        for (int n = 0; n < params.num; ++n) {
+            int obj_index = EntryIndex(side, params.coords, params.classes, n * side * side + i, params.coords);
+            int box_index = EntryIndex(side, params.coords, params.classes, n * side * side + i, 0);
+            float scale = output_blob[obj_index];
+            if (scale < threshold)
+                continue;
+            double x = (col + output_blob[box_index + 0 * side_square]) / side * resized_im_w;
+            double y = (row + output_blob[box_index + 1 * side_square]) / side * resized_im_h;
+            double height = std::exp(output_blob[box_index + 3 * side_square]) * params.anchors[2 * n + 1];
+            double width = std::exp(output_blob[box_index + 2 * side_square]) * params.anchors[2 * n];
+            for (int j = 0; j < params.classes; ++j) {
+                int class_index = EntryIndex(side, params.coords, params.classes, n * side_square + i, params.coords + 1 + j);
+                float prob = scale * output_blob[class_index];
+                if (prob < threshold)
+                    continue;
+                DetectionObject obj(x, y, height, width, j, prob,
+                        static_cast<float>(original_im_h) / static_cast<float>(resized_im_h),
+                        static_cast<float>(original_im_w) / static_cast<float>(resized_im_w));
+                objects.push_back(obj);
+            }
+        }
+    }
+}
 
 ObjectDetect::ObjectDetect(bool enablePerformanceReport)
-    :mDetectThreshold(0.5f),
+    :mDetectThreshold(0.6f),
     mRemoteBlob(false),
     mNetworkInfo(nullptr),
     mEnablePerformanceReport(enablePerformanceReport),
-    mImgData(nullptr)
+    mImgData(nullptr),
+    mInferType(0)
 {
     return;
 }
 
-int ObjectDetect::Init(const std::string& detectorModelPath,
+int ObjectDetect::Init(const std::string& detectorModelPath, const int inferType,
         const std::string& targetDeviceName, bool remoteBlob, VADisplay vaDpy)
 {
     static std::mutex initLock;
     std::lock_guard<std::mutex> lock(initLock);
 
+    mInferType = inferType;
     NetworkOptions opt;
     if (remoteBlob)
     {
@@ -87,20 +154,44 @@ int ObjectDetect::Init(const std::string& detectorModelPath,
         return -1;
     }
 
-    InferenceEngine::OutputsDataMap outputInfo = detectorNetwork.getOutputsInfo();
-    auto outputBlobsIt = outputInfo.begin();
-    if (outputBlobsIt == outputInfo.end())
+    switch (mInferType)
     {
-        return -1;
+        case InferTypeYolo:
+            mYoloOutputInfo = detectorNetwork.getOutputsInfo();
+            if (auto ngraphFunction = detectorNetwork.getFunction()) {
+                for (const auto op : ngraphFunction->get_ops()) {
+                    auto outputLayer = mYoloOutputInfo.find(op->get_friendly_name());
+                    if (outputLayer != mYoloOutputInfo.end()) {
+                        auto regionYolo = std::dynamic_pointer_cast<ngraph::op::RegionYolo>(op);
+                        if (!regionYolo) {
+                            throw std::runtime_error("Invalid output type: " +
+                                    std::string(regionYolo->get_type_info().name) + ". RegionYolo expected");
+                        }
+                        yoloParams[outputLayer->first] = YoloParams(regionYolo);
+                    }
+                }
+            }
+            else {
+                throw std::runtime_error("Can't get ngraph::Function. Make sure the provided model is in IR version 10 or greater.");
+            }
+            break;
+        default:    
+            InferenceEngine::OutputsDataMap outputInfo = detectorNetwork.getOutputsInfo();
+            auto outputBlobsIt = outputInfo.begin();
+            if (outputBlobsIt == outputInfo.end())
+            {
+                return -1;
+            }
+            mDetectorRoiBlobName = outputBlobsIt->first;
+            DataPtr& output = outputInfo.begin()->second;
+
+            const SizeVector outputDims = output->getTensorDesc().getDims();
+            mDetectorOutputName = outputInfo.begin()->first;
+
+            mDetectorMaxProposalCount = outputDims[2];
+            mDetectorObjectSize = outputDims[3];
+            break;
     }
-    mDetectorRoiBlobName = outputBlobsIt->first;
-    DataPtr& output = outputInfo.begin()->second;
-
-    const SizeVector outputDims = output->getTensorDesc().getDims();
-    mDetectorOutputName = outputInfo.begin()->first;
-
-    mDetectorMaxProposalCount = outputDims[2];
-    mDetectorObjectSize = outputDims[3];
    
     mDetectorRequest = mNetworkInfo->CreateNewInferRequest();
 
@@ -113,15 +204,12 @@ void ObjectDetect::SetSrcImageSize(int width, int height)
     mSrcImageSize.width = width;
 }
 
-void ObjectDetect::Detect(const cv::Mat& image, std::vector<ObjectDetectResult>& results)
+void ObjectDetect::Detect(const cv::Mat& image, std::vector<DetectionObject>& results)
 {
     InferenceEngine::Blob::Ptr input = mDetectorRequest.GetBlob(mInputName);
     matU8ToBlob<uint8_t>(image, input);
     mDetectorRequest.Infer();
-
-    const float *detections = mDetectorRequest.GetBlob(mDetectorOutputName)->buffer().as<PrecisionTrait<Precision::FP32>::value_type*>();
-
-    CopyDetectResults(detections, results);
+    CopyDetectResults(results);
     return ;
 }
 
@@ -169,6 +257,18 @@ int ObjectDetect::Detect(mfxFrameData *pData, mfxFrameData *pData_dec, std::vect
     return 0;
 }
 
+
+void ObjectDetect::Detect(const cv::Mat& image, std::vector<ObjectDetectResult>& results)
+{
+    InferenceEngine::Blob::Ptr input = mDetectorRequest.GetBlob(mInputName);
+    matU8ToBlob<uint8_t>(image, input);
+    mDetectorRequest.Infer();
+
+    const float *detections = mDetectorRequest.GetBlob(mDetectorOutputName)->buffer().as<PrecisionTrait<Precision::FP32>::value_type*>();
+
+    CopyDetectResults(detections, results);
+    return ;
+}
 
 void ObjectDetect::Detect(VASurfaceID va_surface, std::vector<ObjectDetectResult>& results)
 {
@@ -235,6 +335,51 @@ void ObjectDetect::CopyDetectResults(const float *detections, std::vector<Object
         results.push_back(r);
     }
 
+}
+
+void ObjectDetect::CopyDetectResults(std::vector<DetectionObject>& results)
+{
+    for (auto &output : mYoloOutputInfo) {
+        auto output_name = output.first;
+        Blob::Ptr blob = mDetectorRequest.GetBlob(output_name);
+        ParseYOLOV3Output(yoloParams[output_name], output_name, blob, mInputH, mInputW, mSrcImageSize.height, mSrcImageSize.width, mDetectThreshold, results);
+    }
+    // Filtering overlapping boxes
+    std::sort(results.begin(), results.end(), std::greater<DetectionObject>());
+    for (size_t i = 0; i < results.size(); ++i) {
+        if (results[i].confidence < mDetectThreshold)
+            continue;
+        for (size_t j = i + 1; j < results.size(); ++j)
+            if (IntersectionOverUnion(results[i], results[j]) >= 0.4)
+                results[j].confidence = 0;
+    }
+}
+
+
+void ObjectDetect::RenderResults(std::vector<DetectionObject>& results, cv::Mat& image)
+{
+    bool verbose = false;
+    // Drawing boxes
+    for (auto &object : results) {
+        if (object.confidence < mDetectThreshold)
+            continue;
+        auto label = object.class_id;
+        float confidence = object.confidence;
+        if (verbose) {
+            std::cout << "[" << label << "] element, prob = " << confidence <<
+                "    (" << object.xmin << "," << object.ymin << ")-(" << object.xmax << "," << object.ymax << ")"
+                << ((confidence > mDetectThreshold) ? " WILL BE RENDERED!" : "") << std::endl;
+        }
+        /** Drawing only results when >confidence_threshold probability **/
+        std::ostringstream conf;
+        conf << ":" << std::fixed << std::setprecision(3) << confidence;
+        cv::putText(image,
+                (!labels.empty() ? labels[label] : std::string("label #") + std::to_string(label)) + conf.str(),
+                cv::Point2f(static_cast<float>(object.xmin), static_cast<float>(object.ymin - 5)), cv::FONT_HERSHEY_COMPLEX_SMALL, 1,
+                cv::Scalar(0, 0, 255));
+        cv::rectangle(image, cv::Point2f(static_cast<float>(object.xmin), static_cast<float>(object.ymin)),
+                cv::Point2f(static_cast<float>(object.xmax), static_cast<float>(object.ymax)), cv::Scalar(0, 0, 255));
+    }
 }
 
 void ObjectDetect::RenderResults(std::vector<ObjectDetectResult>& results, cv::Mat& image, bool isGrey)

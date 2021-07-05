@@ -36,7 +36,9 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #include "parameters_dumper.h"
 
 #include "sample_utils.h"
+#ifdef ENABLE_INFERENCE
 #include "media_inference_manager.h"
+#endif
 
 // let's use std::max and std::min instead
 #undef max
@@ -118,11 +120,13 @@ sInputParams::sInputParams() : __sInputParams()
     bROIasQPMAP = false;
 #endif
 
-    InferType = MediaInferenceManager::InferTypeNone;
+#ifdef ENABLE_INFERENCE
+    InferType = InferTypeNone;
     InferDevType = MediaInferenceManager::InferDeviceGPU;
     InferMaxObjNum = -1; //-1 means no limitation
     InferOffline = false;
     InferRemoteBlob = false;
+#endif
     bDropDecOutput = false;
 }
 
@@ -197,7 +201,8 @@ CTranscodingPipeline::CTranscodingPipeline():
     m_bROIasQPMAP = false;
     m_bExtMBQP = false;
 
-    mInferType = MediaInferenceManager::InferTypeNone;
+#ifdef ENABLE_INFERENCE
+    mInferType = InferTypeNone;
     mInferMaxObjNum = -1;
     mInferInterval = 6;
     mRemoteBlob = false;
@@ -206,6 +211,8 @@ CTranscodingPipeline::CTranscodingPipeline():
     //They will be initialized in InitDecMfxParams
     m_decOutW = 300;
     m_decOutH = 300;
+#endif
+    mNumSurf4Comp = 1;
 } //CTranscodingPipeline::CTranscodingPipeline()
 
 CTranscodingPipeline::~CTranscodingPipeline()
@@ -522,10 +529,12 @@ mfxVideoParam CTranscodingPipeline::GetDecodeParam() {
     if (m_bIsVpp)
     {
         mfxVideoParam tmp = m_mfxDecParams;
+#ifdef ENABLE_INFERENCE
         if (!mInferRGBP)
         {
             tmp.mfx.FrameInfo = m_mfxVppParams.vpp.Out;
         }
+#endif
         return tmp;
     }
     else if (m_bIsPlugin)
@@ -563,6 +572,7 @@ mfxStatus CTranscodingPipeline::DecodeOneFrame(ExtendedSurface *pExtSurface)
     DevBusyTimer.Start();
     while (MFX_ERR_MORE_DATA == sts || MFX_ERR_MORE_SURFACE == sts || MFX_ERR_NONE < sts)
     {
+
         if (MFX_WRN_DEVICE_BUSY == sts)
         {
             WaitForDeviceToBecomeFree(*m_pmfxSession,m_LastDecSyncPoint,sts);
@@ -883,17 +893,19 @@ mfxStatus CTranscodingPipeline::Decode()
     int batch_id = 0; //starting from 1
     int frame_num = 0;
 
-    if (mInferType != MediaInferenceManager::InferTypeNone)
+#ifdef ENABLE_INFERENCE
+    if (mInferType != InferTypeNone)
     {
         if (0 != mInferMnger.Init(m_decOutW, m_decOutH,
                     mInferType, mStrIRFileDir,
-                    mInferDevType, mInferMaxObjNum,
+                    mInferDevType, mInferInterval, mInferMaxObjNum,
                     mRemoteBlob, mVADpy))
         {
             NoMoreFramesSignal();
             return MFX_ERR_UNKNOWN;
         }
     }
+#endif
 
     if (m_bUseOverlay)
     {
@@ -1039,15 +1051,17 @@ mfxStatus CTranscodingPipeline::Decode()
             VppExtSurface.Syncp = DecExtSurface.Syncp;
         }
 
+#ifdef ENABLE_INFERENCE
         if (mInferRGBP)
         {
             SinkExtSurface.pSurface =  DecExtSurface.pSurface;
             SinkExtSurface.Syncp = DecExtSurface.Syncp;
         }
         else
+#endif
         {
             SinkExtSurface.pSurface = VppExtSurface.pSurface;
-            SinkExtSurface.Syncp = DecExtSurface.Syncp;
+            SinkExtSurface.Syncp = VppExtSurface.Syncp;
         }
         //--- Sometimes VPP may return 2 surfaces on output, for the first one it'll return status MFX_ERR_MORE_SURFACE - we have to call VPPOneFrame again in this case
         if(MFX_ERR_MORE_SURFACE == sts)
@@ -1113,8 +1127,9 @@ mfxStatus CTranscodingPipeline::Decode()
             MSDK_CHECK_ERR_NONE_STATUS(sts, MFX_ERR_ABORTED, "PreEnc: SyncOperation failed");
         }
 
+#ifdef ENABLE_INFERENCE
         if ((!m_bEncodeEnable)
-                && (mInferType != MediaInferenceManager::InferTypeNone)
+                && (mInferType != InferTypeNone)
                 && (VppExtSurface.pSurface != NULL))
         {
             /* Run inference every infer_interval frame */
@@ -1190,9 +1205,20 @@ mfxStatus CTranscodingPipeline::Decode()
                 }
             }
         }
+#endif
 
         // add surfaces in queue for all sinks
         pNextBuffer->AddSurface(PreEncExtSurface);
+
+        if (m_sinkNum > 1)
+        {
+            for (uint i = 1; i < m_sinkNum; i++)
+            {
+                //std::cout<<"Decode "<<this<<"Add surface to sink "<<i<<std::endl;
+                m_pBufferArray[i]->AddSurface(PreEncExtSurface);
+            }
+        }
+
         /* one of key parts for N_to_1 mode:
         * decoded frame should be in one buffer only as we have only 1 (one!) sink
         * */
@@ -1455,7 +1481,7 @@ mfxStatus CTranscodingPipeline::Encode()
             }
         }
 
-        if(shouldReadNextFrame) // Release current decoded surface only if we're going to read next one during next iteration
+        if(m_sinkNum <= 1 && shouldReadNextFrame) // Release current decoded surface only if we're going to read next one during next iteration
         {
             m_pBuffer->ReleaseSurface(DecExtSurface.pSurface);
         }
@@ -1482,15 +1508,29 @@ mfxStatus CTranscodingPipeline::Encode()
         // check encoding result
         MSDK_CHECK_STATUS(sts, "<EncodeOneFrame|Surface2BS> failed");
 
-        // output statistics if several conditions are true OR we've approached
-        // the end, and statisticsWindowSize is not 0, but number of frames is
-        // not multiple of statisticsWindowSize; should use m_nProcessedFramesNum
-        // as it simplifies conditions
-        if ( (statisticsWindowSize && m_nOutputFramesNum && 0 == m_nProcessedFramesNum % statisticsWindowSize) ||
-             (statisticsWindowSize && (m_nProcessedFramesNum >= m_MaxFramesForTranscode)))
+        if (m_nVPPCompEnable != VppCompOnlyEncode)
         {
-            outputStatistics.PrintStatistics(GetPipelineID());
-            outputStatistics.ResetStatistics();
+            // output statistics if several conditions are true OR we've approached
+            // the end, and statisticsWindowSize is not 0, but number of frames is
+            // not multiple of statisticsWindowSize; should use m_nProcessedFramesNum
+            // as it simplifies conditions
+            if ( (statisticsWindowSize && m_nOutputFramesNum && 0 == m_nProcessedFramesNum % statisticsWindowSize) ||
+                    (statisticsWindowSize && (m_nProcessedFramesNum >= m_MaxFramesForTranscode)))
+            {
+                outputStatistics.PrintStatistics(GetPipelineID());
+                outputStatistics.ResetStatistics();
+            }
+        }
+        else if (mNumSurf4Comp > 0)
+        {
+            //for N to 1 compose case
+            if ( (statisticsWindowSize && m_nOutputFramesNum && 0 == (m_nProcessedFramesNum  % (statisticsWindowSize * mNumSurf4Comp))) ||
+                    (statisticsWindowSize && (m_nProcessedFramesNum >= m_MaxFramesForTranscode)))
+            {
+                outputStatistics.PrintStatistics(GetPipelineID());
+                outputStatistics.ResetStatistics();
+            }
+
         }
 
         m_BSPool.back()->Syncp = VppExtSurface.Syncp;
@@ -2555,6 +2595,7 @@ mfxStatus CTranscodingPipeline::InitDecMfxParams(sInputParams *pInParams)
         decPostProc->In.CropW = m_mfxDecParams.mfx.FrameInfo.CropW;
         decPostProc->In.CropH = m_mfxDecParams.mfx.FrameInfo.CropH;
 
+#ifdef ENABLE_INFERENCE
         if (pInParams->InferRemoteBlob)
         {
             decPostProc->Out.FourCC = m_mfxDecParams.mfx.FrameInfo.FourCC;
@@ -2567,6 +2608,7 @@ mfxStatus CTranscodingPipeline::InitDecMfxParams(sInputParams *pInParams)
             decPostProc->Out.ChromaFormat = m_mfxDecParams.mfx.FrameInfo.ChromaFormat;
         }
         else 
+#endif
         {
             decPostProc->Out.FourCC = MFX_FOURCC_RGB4; //Force SFC output to be RGB444
             decPostProc->Out.ChromaFormat = MFX_CHROMAFORMAT_YUV444;
@@ -2579,10 +2621,13 @@ mfxStatus CTranscodingPipeline::InitDecMfxParams(sInputParams *pInParams)
         decPostProc->Out.CropW = pInParams->nVppCompDstW;
         decPostProc->Out.CropH = pInParams->nVppCompDstH;
 
+#ifdef ENABLE_INFERENCE
         m_decOutW = decPostProc->Out.Width;
         m_decOutH = decPostProc->Out.Height;
+#endif
     }
 #endif //MFX_VERSION >= 1022
+#ifdef ENABLE_INFERENCE
     mInferType = pInParams->InferType;
     mInferOffline = pInParams->InferOffline;
     mInferDevType = pInParams->InferDevType;
@@ -2595,17 +2640,18 @@ mfxStatus CTranscodingPipeline::InitDecMfxParams(sInputParams *pInParams)
     {
         switch (mInferType)
         {
-            case MediaInferenceManager::InferTypeVADetect:
+            case InferTypeVADetect:
                 mInferInterval = 1;
                 break;
-            case MediaInferenceManager::InferTypeFaceDetection:
-            case MediaInferenceManager::InferTypeHumanPoseEst:
+            case InferTypeFaceDetection:
+            case InferTypeHumanPoseEst:
                 mInferInterval = 6;
                 break;
             default:
                 break;
         }
     }
+#endif
 
     snprintf(mStrIRFileDir, MSDK_MAX_FILENAME_LEN, "%s", pInParams->strIRFileDir);
     
@@ -3247,6 +3293,7 @@ mfxStatus CTranscodingPipeline::InitVppMfxParams(sInputParams *pInParams)
         m_mfxVppParams.vpp.Out.ChromaFormat = FourCCToChroma(pInParams->DecoderFourCC);
         m_mfxVppParams.vpp.Out.BitDepthLuma = m_mfxVppParams.vpp.Out.BitDepthChroma = 8;
 
+#ifdef ENABLE_INFERENCE
         if (mInferRGBP && m_bDecodeEnable)
         {
             //TBD: currently only -infer::fd is supported when -dc::rgbp is set.
@@ -3257,6 +3304,7 @@ mfxStatus CTranscodingPipeline::InitVppMfxParams(sInputParams *pInParams)
             m_mfxVppParams.vpp.Out.Height = MSDK_ALIGN16(INFER_FD_INPUT_H);
         }
         else
+#endif
         {
 
             if (pInParams->nVppCompDstH)
@@ -3273,8 +3321,10 @@ mfxStatus CTranscodingPipeline::InitVppMfxParams(sInputParams *pInParams)
 
         }
 
+#ifdef ENABLE_INFERENCE
         m_decOutW = pInParams->nVppCompDstW;
         m_decOutH = pInParams->nVppCompDstH;
+#endif
 
     }
 
@@ -3885,7 +3935,7 @@ mfxStatus CTranscodingPipeline::Init(sInputParams *pParams,
                                      MFXFrameAllocator *pMFXAllocator,
                                      void* hdl,
                                      CTranscodingPipeline *pParentPipeline,
-                                     SafetySurfaceBuffer  *pBuffer,
+                                     SafetySurfaceBuffer  **pBufferArray,
                                      FileBitstreamProcessor   *pBSProc)
 {
     MSDK_CHECK_POINTER(pParams, MFX_ERR_NULL_PTR);
@@ -3903,6 +3953,10 @@ mfxStatus CTranscodingPipeline::Init(sInputParams *pParams,
     m_pMFXAllocator = pMFXAllocator;
     m_pBSProcessor = pBSProc;
     m_hdl = hdl;
+
+    m_sinkNum =  pParams->sinkNum;
+    m_sourceNum =  pParams->sourceNum;
+    mNumSurf4Comp = pParams->numSurf4Comp;
 
     m_pParentPipeline = pParentPipeline;
     shouldUseGreedyFormula = pParams->shouldUseGreedyFormula;
@@ -3936,6 +3990,7 @@ mfxStatus CTranscodingPipeline::Init(sInputParams *pParams,
 
     m_strMfxParamsDumpFile.assign(pParams->strMfxParamsDumpFile);
 
+#ifdef ENABLE_INFERENCE
     if (pParams->DecoderFourCC == MFX_FOURCC_RGBP)
     {
         mInferRGBP = true;
@@ -3944,6 +3999,7 @@ mfxStatus CTranscodingPipeline::Init(sInputParams *pParams,
     {
         mInferRGBP = false;
     }
+#endif
 
     if (pParams->statisticsLogFile)
     {
@@ -4046,7 +4102,17 @@ mfxStatus CTranscodingPipeline::Init(sInputParams *pParams,
     m_libvaBackend = pParams->libvaBackend;
 #endif
 
-    m_pBuffer = pBuffer;
+
+    m_pBufferArray = pBufferArray;
+
+    if (pBufferArray)
+    {
+        m_pBuffer = pBufferArray[0];
+    }
+    else
+    {
+        m_pBuffer = nullptr;
+    }
 
     // we set version to 1.0 and later we will query actual version of the library which will got leaded
     m_initPar.Version.Major = 1;

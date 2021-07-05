@@ -34,7 +34,9 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 
 #include "sysmem_allocator.h"
 
+#ifdef ENABLE_INFERENCE
 #include "media_inference_manager.h"
+#endif
 #include "version.h"
 
 #include <vector>
@@ -94,8 +96,8 @@ void TranscodingSample::PrintError(const msdk_char *strErrorMessage, ...)
         va_start(args, strErrorMessage);
         msdk_vprintf(strErrorMessage, args);
         va_end(args);
-        msdk_printf(MSDK_STRING("\nUsage: sample_multi_transcode [options] [--] pipeline-description\n"));
-        msdk_printf(MSDK_STRING("   or: sample_multi_transcode [options] -par ParFile\n"));
+        msdk_printf(MSDK_STRING("\nUsage: video_e2e_sample [options] [--] pipeline-description\n"));
+        msdk_printf(MSDK_STRING("   or: video_e2e_sample [options] -par ParFile\n"));
         msdk_printf(MSDK_STRING("\n"));
         msdk_printf(MSDK_STRING("Run application with -? option to get full help text.\n\n"));
     }
@@ -352,7 +354,7 @@ void TranscodingSample::PrintHelp()
 
     msdk_printf(MSDK_STRING("\n"));
     msdk_printf(MSDK_STRING("Inference parameters :\n"));
-    msdk_printf(MSDK_STRING("  -infer::<fd,hp,vd> <IR_files_directory>  specify the inference mode and directory that stores IR files(.xml, .bin). The inference function uses the output surface of decode as input and renders the results on it\n"));
+    msdk_printf(MSDK_STRING("  -infer::<fd,yolo,hp,vd,mot> <IR_files_directory or IR file location>  specify the inference mode and directory/file location that stores IR files(.xml, .bin). The inference function uses the output surface of decode as input and renders the results on it\n"));
     msdk_printf(MSDK_STRING("  -infer::offline              With this option, the inference results won't be rendered to surface\n)"));
     msdk_printf(MSDK_STRING("  -infer::device <GPU, HDDL>   Specify the target inference device. GPU is used by default\n)"));
     msdk_printf(MSDK_STRING("  -infer::interval <number>    Specify inference interval. For example, '-infer::interval 6' means every 6 frame, there is one frame will be inferenced, and the inference fps is 30/6 = 5. By default, interval is 6 for face detection, 6 for human pose estimation and 1 for vehicel detection.\n)"));
@@ -1443,6 +1445,7 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
                 InputParams.bIsMVC = true;
             }
         }
+        #ifdef ENABLE_INFERENCE
         else if ( (0 == msdk_strncmp(MSDK_STRING("-infer::"), argv[i], msdk_strlen(MSDK_STRING("-infer::")))))
         {
             bool needIRPath = false;
@@ -1458,20 +1461,32 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
 
             if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("fd"), msdk_strlen(MSDK_STRING("fd")))) //Face detection
             {
-                InputParams.InferType = MediaInferenceManager::InferTypeFaceDetection;
+                InputParams.InferType = InferTypeFaceDetection;
                 inferParType = INFER_PAR_MODEL;
             }
             else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("hp"), msdk_strlen(MSDK_STRING("hp")))) //Human Pose
             {
-                InputParams.InferType = MediaInferenceManager::InferTypeHumanPoseEst;
+                InputParams.InferType = InferTypeHumanPoseEst;
                 inferParType = INFER_PAR_MODEL;
                 msdk_printf(MSDK_STRING("Inference: Human Pose Estimation. Model directory %s \n"), argv[i+1]);
             }
             else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("vd"), msdk_strlen(MSDK_STRING("vd")))) //Vehicle Detect
             {
-                InputParams.InferType = MediaInferenceManager::InferTypeVADetect;
+                InputParams.InferType = InferTypeVADetect;
                 inferParType = INFER_PAR_MODEL;
                 msdk_printf(MSDK_STRING("Inference: Vehicle and Attribute Detect. Model directory %s \n"), argv[i+1]);
+            }
+            else if (0 == msdk_strncmp(argv[i] + 8, MSDK_STRING("mot"), msdk_strlen(MSDK_STRING("mot")))) //Multi_object_tracker
+            {
+                InputParams.InferType = InferTypeMOTracker;
+                inferParType = INFER_PAR_MODEL;
+                msdk_printf(MSDK_STRING("Inference: Multi object tracker. Model directory %s \n"), argv[i + 1]);
+            }
+            else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("yolo"), msdk_strlen(MSDK_STRING("yolo")))) //Yolo
+            {
+                InputParams.InferType = InferTypeYolo;
+                inferParType = INFER_PAR_MODEL;
+                msdk_printf(MSDK_STRING("Inference: Yolo. IR file %s \n"), argv[i+1]);
             }
             else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("offline"), msdk_strlen(MSDK_STRING("offline")))) //Offline reference
             {
@@ -1519,11 +1534,11 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
                     {
                         InputParams.InferDevType = MediaInferenceManager::InferDeviceHDDL;
                     }
-                    else if (0 == msdk_strncmp(MSDK_STRING("HDDL"), argv[i], msdk_strlen(MSDK_STRING("HDDL"))))
+                    else if (0 == msdk_strncmp(MSDK_STRING("GPU"), argv[i], msdk_strlen(MSDK_STRING("GPU"))))
                     {
                         InputParams.InferDevType = MediaInferenceManager::InferDeviceGPU;
                     }
-                    else if (0 == msdk_strncmp(MSDK_STRING("CPU"), argv[i], msdk_strlen(MSDK_STRING("HDDL"))))
+                    else if (0 == msdk_strncmp(MSDK_STRING("CPU"), argv[i], msdk_strlen(MSDK_STRING("CPU"))))
                     {
                         InputParams.InferDevType = MediaInferenceManager::InferDeviceCPU;
                     }
@@ -1559,6 +1574,7 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
                     return  MFX_ERR_UNSUPPORTED;
             }
         } //Support inference in pipeline
+        #endif
         else if ( (0 == msdk_strncmp(MSDK_STRING("-rtsp_save"), argv[i], msdk_strlen(MSDK_STRING("-rtsp_save")))))
         {
             VAL_CHECK(i+1 == argc, i, argv[i]);

@@ -1,0 +1,3 @@
+-i::h264 ./video/1080p.h264 -join -hw -async 4 -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator -infer::yolo yolofp16/yolo_v3.xml -dec_postproc
+-i::h264 ./video/1080p.h264 -join -hw -async 4 -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 0 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator -infer::yolo yolofp16/yolo_v3.xml -dec_postproc
+-vpp_comp_only 2 -w 1940 -h 1080 -async 4 -threads 2 -join -hw -i::source -ext_allocator -ec::rgb4 -rdrm-DisplayPort 
