@@ -38,11 +38,11 @@ See [user guide](./doc/concurrent_video_analytic_sample_application_user_guide_2
 # System requirements
 
 **Operating System:**
-* Ubuntu 18.04.02
+* Ubuntu 20.04
 
 **Software:**
 * [MediaSDK 21.1.3](https://github.com/Intel-Media-SDK/MediaSDK/releases/tag/intel-mediasdk-21.1.3)
-* [OpenVINO™ 2021.3](https://software.intel.com/en-us/openvino-toolkit)
+* [OpenVINO™ 2021.4](https://software.intel.com/en-us/openvino-toolkit)
 
 **Hardware:** 
 * Intel® platforms supported by the MediaSDK 21.1.3 and OpenVINO 2021.3. 
