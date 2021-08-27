@@ -38,7 +38,7 @@ See [user guide](./doc/concurrent_video_analytic_sample_application_user_guide_2
 # System requirements
 
 **Operating System:**
-* Ubuntu 18.04.05
+* Ubuntu 18.04.02
 
 **Software:**
 * [MediaSDK 21.1.3](https://github.com/Intel-Media-SDK/MediaSDK/releases/tag/intel-mediasdk-21.1.3)
@@ -53,7 +53,7 @@ See [user guide](./doc/concurrent_video_analytic_sample_application_user_guide_2
 
 Run build_and_install.sh to install dependent software packages and build sample application video_e2e_sample. 
 
-Please refer to ”Installation Guide“ in [user guide](./doc/concurrent_video_analytic_sample_application_user_guide.pdf) for details.
+Please refer to ”Installation Guide“ in [user guide](./doc/concurrent_video_analytic_sample_application_user_guide_2021.1.0.pdf) for details.
 
 ## Build steps
 

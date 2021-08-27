@@ -1,7 +1,7 @@
 # Frequently asked questions (SVET sample application)
 
 ## Where can I find the descritpion of options used in par file?
-See chapter 2.4 in doc/svet_sample_application_user_guide_2021.1.0.pdf
+See chapter 2.4 in doc/concurrent_video_analytic_sample_application_user_guide.pdf
 Running the SVET sample applicton with option "-?" can show the usage of options.
 
 ## Why does the system need to be switched to text console mode before running the sample application
