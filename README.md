@@ -33,7 +33,7 @@ The sample application is licensed under MIT license. See [LICENSE](./video_e2e_
 See [CONTRIBUTING](./doc/CONTRIBUTING.md) for details. Thank you!
 
 # Documentation
-See [user guide](./doc/concurrent_video_analytic_sample_application_user_guide_2020.3.0.pdf)
+See [user guide](./doc/concurrent_video_analytic_sample_application_user_guide.pdf)
 
 # System requirements
 
