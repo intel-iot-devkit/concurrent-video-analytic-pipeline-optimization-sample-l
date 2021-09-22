@@ -45,7 +45,7 @@ See [user guide](./doc/concurrent_video_analytic_sample_application_user_guide.p
 * [OpenVINO™ 2021.4](https://software.intel.com/en-us/openvino-toolkit)
 
 **Hardware:** 
-* Intel® platforms supported by the MediaSDK 21.1.3 and OpenVINO 2021.3. 
+* Intel® platforms supported by the MediaSDK 21.1.3 and OpenVINO 2021.4. 
 * For Media SDK, the major platform dependency comes from the back-end media driver. https://github.com/intel/media-driver
 * For OpenVINO™, see details from here: https://software.intel.com/en-us/openvino-toolkit/documentation/system-requirements
 
@@ -53,7 +53,7 @@ See [user guide](./doc/concurrent_video_analytic_sample_application_user_guide.p
 
 Run build_and_install.sh to install dependent software packages and build sample application video_e2e_sample. 
 
-Please refer to ”Installation Guide“ in [user guide](./doc/concurrent_video_analytic_sample_application_user_guide_2021.1.0.pdf) for details.
+Please refer to ”Installation Guide“ in [user guide](./doc/concurrent_video_analytic_sample_application_user_guide.pdf) for details.
 
 ## Build steps
 
