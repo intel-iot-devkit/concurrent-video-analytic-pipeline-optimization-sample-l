@@ -1,0 +1,22 @@
+-i::h264 ./video/1080p.h264  -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 0 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 270 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 540 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 480 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator
+
+-vpp_comp 16 -w 1920 -h 1080 -async 4 -threads 2 -join -hw  -threads 3 -i::source -ext_allocator -ec::nv12 -o::h264 comp_out_1080p.h264 
+-vpp_comp_only 16 -w 1920 -h 1080 -async 4 -threads 2 -join -hw  -i::source -ext_allocator -ec::rgb4 -rdrm

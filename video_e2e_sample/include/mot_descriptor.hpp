@@ -28,6 +28,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #include "network_factory.hpp"
 #include "mot_utils.hpp"
+#include "openvino/openvino.hpp"
+#include <opencv2/opencv.hpp>
+
 ///
 /// \brief The IImageDescriptor class declares base class for image
 /// descriptor.
@@ -128,14 +131,14 @@ private:
 
     /** @brief Inference Engine device */
     std::string deviceName_;
-    /** @brief Net outputs info */
-    InferenceEngine::OutputsDataMap outputs_data_map_;
-    /** @brief Map of output blobs */
-    InferenceEngine::BlobMap outputs_blob_map_;
-    /** @brief IE InferRequest */
-    mutable InferenceEngine::InferRequest infer_request_;
     /** @brief Pointer to the pre-allocated input blob */
     mutable InferenceEngine::Blob::Ptr pre_alloc_input_blob_;
+
+    std::shared_ptr<ov::InferRequest>  infer_request_;
+    std::string input_name_;
+    std::string output_name_;
+    int max_detections_count_;
+    int object_size_;
 
     /**
      * @brief Run network

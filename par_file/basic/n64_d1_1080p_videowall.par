@@ -70,4 +70,4 @@
 -i::h264 /home/work/video/vm_7.h264 -join -hw  -async 1 -o::sink -dec_postproc -vpp_comp_dst_x 1440 -vpp_comp_dst_y 945 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
 -i::h264 /home/work/video/vm_8.h264 -join -hw  -async 1 -o::sink -dec_postproc -vpp_comp_dst_x 1680 -vpp_comp_dst_y 945 -vpp_comp_dst_w 240 -vpp_comp_dst_h 135 -ext_allocator
 
--vpp_comp_only 64 -w 1920 -h 1080 -async 1 -threads 2 -join -hw -i::source -ext_allocator -ec::rgb4 -rdrm-DisplayPort -fps 30
+-vpp_comp_only 64 -w 1920 -h 1080 -async 1 -threads 2 -join -hw -i::source -ext_allocator -ec::rgb4 -rdrm -fps 30

@@ -25,9 +25,12 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #include <string>
 #include <vector>
+#include <queue>
 
+#include "openvino/openvino.hpp"
 #include <inference_engine.hpp>
 #include <opencv2/core/core.hpp>
+#include <opencv2/opencv.hpp>
 #include <gpu/gpu_context_api_va.hpp>
 #include <ngraph/ngraph.hpp>
 
@@ -94,6 +97,29 @@ public:
 
         computeAnchors(mask);
     }
+
+    YoloParams(size_t classes,
+            int coords,
+            const std::vector<float>& anchors,
+            const std::vector<int64_t>& masks,
+            size_t outputWidth,
+            size_t outputHeight) : classes(classes),
+
+    coords(coords) {
+        num = masks.size();
+
+        if (num) {
+            this->anchors.resize(num * 2);
+
+            for (int i = 0; i < num; ++i) {
+                this->anchors[i * 2] = anchors[masks[i] * 2];
+                this->anchors[i * 2 + 1] = anchors[masks[i] * 2 + 1];
+            }
+        } else {
+            this->anchors = anchors;
+            num = anchors.size() / 2;
+        }
+    }
 };
 
 
@@ -124,7 +150,9 @@ private:
     float mDetectThreshold;
     bool mRemoteBlob;
     std::string mInputName;
+    VADisplay mVaDpy;
 
+    int preprocessYolo(ov::CompiledModel &model);
     void CopyDetectResults(const float *detections, std::vector<ObjectDetectResult>& results);
     int CopyImageData(unsigned char *dst, char unsigned *src, unsigned int width, unsigned int height, unsigned int pitch);
 
@@ -132,6 +160,14 @@ private:
     NetworkInfo *mNetworkInfo;
 
     InferenceEngine::InferRequest mDetectorRequest;
+    std::shared_ptr<ov::InferRequest>  mDetectorRequest1;
+    std::shared_ptr<ov::CompiledModel> mCompiled_model;
+    ov::CompiledModel  mCompiled_model1;
+    cv::VideoWriter writer;
+    std::queue<ov::InferRequest> mReqQueue;
+    std::string mInput_tensor_name;
+    std::string mOutput_tensor_name;
+
     int mDetectorMaxProposalCount;
     int mDetectorObjectSize;
     std::string mDetectorRoiBlobName;
@@ -143,7 +179,6 @@ private:
     unsigned int mInputH;
     unsigned char *mImgData;
 
-    InferenceEngine::OutputsDataMap mYoloOutputInfo;
     std::map<std::string, YoloParams> yoloParams;
     std::vector<std::string> labels;
 

@@ -22,6 +22,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include "object_detect.hpp"
 #include "e2e_sample_infer_def.h"
 #include "multi_object_tracker.hpp"
+#include "sample_defs.h"
+#include <opencv2/opencv.hpp>
 
 using namespace human_pose_estimation;
 
@@ -35,13 +37,18 @@ public:
     enum InferDeviceType {InferDeviceGPU, InferDeviceCPU, InferDeviceHDDL };
 
     int Init(int dec_w, int dec_h, int infer_type, const char *model_dir,
-            enum InferDeviceType device, int inferInterval, int maxObjNum, bool remoteBlob, VADisplay vaDpy);
+            enum InferDeviceType device, int inferInterval, int maxObjNum, bool remoteBlob, VADisplay vaDpy, msdk_char* str_detectResultsavefile);
     int GetInferInterval();
     /* If inferOffline is true, the results won't be render to input surface */
-    int RunInfer(mfxFrameData *data, bool inferOffline);
-    int RunInfer(mfxFrameData *data, mfxFrameData *data_dec, bool inferOffline, int decSurfPitch);
+    int RunInfer(mfxFrameData *data, bool inferOffline, int frameNum);
+    int RunInfer(mfxFrameData *data, mfxFrameData *data_dec, bool inferOffline, int decSurfPitch, int frameNum);
     int RenderRepeatLast(mfxFrameData *data);
     int RenderRepeatLast(mfxFrameData *pData, bool isGrey, int decSurfPitch);
+    int SaveFDResults(int frameNum);
+    int SaveYOLOResults(int frameNum);
+    int SaveHPResults(int frameNum);
+    int SaveVDResults(int frameNum);
+    int SaveMOTResults(int frameNum);
 
 private:
     MediaInferenceManager(MediaInferenceManager const&);
@@ -77,6 +84,8 @@ private:
     int mMaxObjNum;
     std::string mTargetDevice;
 
+    cv::VideoWriter writer;
+
     int mInferInterval;
     int mInferDevType;
     int mInit;
@@ -98,5 +107,7 @@ private:
 
     /*Multi object Tracker*/
     MultiObjectTracker *mMultiObjectTracker = nullptr;
+
+    msdk_char m_strDetectResultSaveFile[MSDK_MAX_FILENAME_LEN]={'\0'};
 };
 

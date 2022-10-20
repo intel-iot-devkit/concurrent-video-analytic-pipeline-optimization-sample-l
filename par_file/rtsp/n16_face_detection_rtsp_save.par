@@ -19,4 +19,4 @@
 -i::h264 rtsp://172.16.181.169:1554/simu0000 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 1440 -vpp_comp_dst_y 810 -vpp_comp_dst_w 480 -vpp_comp_dst_h 270 -ext_allocator -infer::fd ./model -rtsp_save rtsp16.h264
 
 
--vpp_comp_only 16 -w 1920 -h 1080 -async 4 -threads 2 -join -hw  -i::source -ext_allocator -infer::fd ./model -ec::rgb4 -rdrm-DisplayPort
+-vpp_comp_only 16 -w 1920 -h 1080 -async 4 -threads 2 -join -hw  -i::source -ext_allocator -infer::fd ./model -ec::rgb4 -rdrm

@@ -45,6 +45,8 @@ public:
     int RunInfer(mfxFrameData* pData, bool inferOffline);
     int RenderRepeatLast(mfxFrameData* pData);
     void SetRenderSize(int width, int height);
+    TrackedObjects GetMotTrackerDetections();
+    const TrackedObjects& GetMotDetectors();
 
     ~MultiObjectTracker() {};
 

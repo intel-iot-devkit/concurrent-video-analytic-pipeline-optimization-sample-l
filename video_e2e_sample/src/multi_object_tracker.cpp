@@ -24,8 +24,8 @@ MultiObjectTracker::MultiObjectTracker()
     :mFrameIdx(0),
     mRenderW(480),
     mRenderH(270),
-    mInputW(1920),
-    mInputH(1080),
+    mInputW(256),
+    mInputH(128),
     mInferInterval(6)
 {
     setScaleRatio();
@@ -48,8 +48,11 @@ int MultiObjectTracker::Init(const std::string& detModelPath, const std::string&
 }
 
 int MultiObjectTracker::RunInfer(mfxFrameData* pData, bool inferOffline) {
-    unsigned char* pbuf = (pData->B < pData->R) ? pData->B : pData->R;
-    Mat frameRGB4(mRenderH, mRenderW, CV_8UC4, (unsigned char*)pbuf);
+    unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
+    Mat frameRGB4pad(mRenderH, pData->Pitch / 4, CV_8UC4, (unsigned char *)pbuf);
+    Rect content(0, 0, mRenderW, mRenderH);
+    Mat frameRGB4 = frameRGB4pad(content);
+    Mat frameScl(mInputH, mInputW, CV_8UC4);
     Mat frame(mInputH, mInputW, CV_8UC3);
     if (mRenderH == mInputH && mInputW == mRenderW)
     {
@@ -57,10 +60,10 @@ int MultiObjectTracker::RunInfer(mfxFrameData* pData, bool inferOffline) {
     }
     else
     {
-        Mat frameScl(mInputH, mInputW, CV_8UC4);
         resize(frameRGB4, frameScl, Size(mInputW, mInputH));
         cvtColor(frameScl, frame, COLOR_RGBA2RGB);
     }
+
     mMotDetector->SubmitFrame(frame, mFrameIdx);
     mMotDetector->WaitAndFetchResults();
     mMotDetector->GetInputSize(mInputW, mInputH);
@@ -107,8 +110,11 @@ void MultiObjectTracker::renderResult(cv::Mat& frame) {
 }
 
 int MultiObjectTracker::RenderRepeatLast(mfxFrameData* pData) {
-    unsigned char* pbuf = (pData->B < pData->R) ? pData->B : pData->R;
-    Mat frameRGB4(mRenderH, mRenderW, CV_8UC4, (unsigned char*)pbuf);
+    unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
+    Mat frameRGB4pad(mRenderH, pData->Pitch / 4, CV_8UC4, (unsigned char *)pbuf);
+    Rect content(0, 0, mRenderW, mRenderH);
+    Mat frameRGB4 = frameRGB4pad(content);
+
     renderResult(frameRGB4);
     return 0;
 }
@@ -175,3 +181,10 @@ void MultiObjectTracker::setScaleRatio() {
     }
 }
 
+TrackedObjects MultiObjectTracker::GetMotTrackerDetections() {
+    return mMotTracker->TrackedDetections();
+}
+
+const TrackedObjects& MultiObjectTracker::GetMotDetectors() {
+    return mMotDetector->GetResults();
+}

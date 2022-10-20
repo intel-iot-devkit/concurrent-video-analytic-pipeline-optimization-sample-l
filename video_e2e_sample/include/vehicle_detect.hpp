@@ -22,6 +22,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <string>
 #include <vector>
 
+#include "openvino/openvino.hpp"
+#include <opencv2/opencv.hpp>
 #include <inference_engine.hpp>
 #include <opencv2/core/core.hpp>
 #include "network_factory.hpp"
@@ -51,6 +53,7 @@ private:
     VehicleDetect& operator=(VehicleDetect const&);
     float mDetectThreshold;
     InferenceEngine::InferRequest mVDDetectorRequest;
+    std::shared_ptr<ov::InferRequest>  mVDDetectorRequest1;
     int mDetectorMaxProposalCount;
     int mDetectorObjectSize;
     std::string mDetectorRoiBlobName;
@@ -61,6 +64,7 @@ private:
     NetworkInfo *mVDNetworkInfo;
 
     InferenceEngine::InferRequest mVARequest;
+    std::shared_ptr<ov::InferRequest>  mVARequest1;
     std::string mVAOutputNameForColor;  // color is the first output
     std::string mVAOutputNameForType;  // type is the second output
     static const std::string mVAColors[];

@@ -32,6 +32,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include "human_pose.hpp"
 #include "network_factory.hpp"
 
+#include "openvino/openvino.hpp"
+
 namespace human_pose_estimation {
 class HumanPoseEstimator {
 public:
@@ -78,6 +80,7 @@ private:
     cv::Size inputLayerSize;
     int upsampleRatio;
     InferenceEngine::InferRequest mRequest;
+    std::shared_ptr<ov::InferRequest>  mRequest1;
     std::string pafsBlobName;
     std::string heatmapsBlobName;
     bool enablePerformanceReport;

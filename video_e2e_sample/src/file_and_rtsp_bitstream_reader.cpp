@@ -19,7 +19,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include "time_statistics.h"
 #include "sample_defs.h"
 #include "sample_utils.h"
-#include "mfxcommon.h"
+#include "vpl/mfxcommon.h"
 
 #include "file_and_rtsp_bitstream_reader.h"
 
@@ -68,7 +68,7 @@ void FileAndRTSPBitstreamReader::ClearRTSPQueue()
             delete packet;
         }
         delete m_packets;
-	m_packets = nullptr;
+        m_packets = nullptr;
 
     }
     return;

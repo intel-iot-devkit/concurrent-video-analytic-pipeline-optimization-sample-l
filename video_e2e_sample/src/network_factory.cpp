@@ -21,57 +21,125 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 
 #include <cldnn/cldnn_config.hpp>
+#include <ie/gpu/gpu_context_api_va.hpp>
+#include <intel_gpu/properties.hpp>
 #include "sample_defs.h"
 #include <samples/common.hpp>
 #include "network_factory.hpp"
 
-using namespace InferenceEngine;
+//using namespace InferenceEngine;
+using namespace ov;
+using namespace ov::preprocess;
 
-//static NetworkFactory::mNetworks = {};
 int NetworkInfo::Init(const std::string &modelPath, const std::string &device, const NetworkOptions &opt)
 {
-    Core ie;
-    std::string str_ir_bin = fileNameNoExt(modelPath) + ".bin";
-    mNetwork = ie.ReadNetwork(modelPath, str_ir_bin);
-    mNetwork.setBatchSize(1);
+    ov::Core core;
+    int input_height=300;
+    int input_width = 300;
+
+    ov::Layout desiredLayout = {"NHWC"};
+       // -------- Step 2. Read a model --------
+    std::shared_ptr<ov::Model> model = core.read_model(modelPath);
+
+        // -------- Step 3. Configure preprocessing  --------
+       // PrePostProcessor ppp = PrePostProcessor(model);
+    ov::Output<ov::Node> input = model->input();
+    input_tensor_name = input.get_any_name();
+    ov::Layout modelLayout = ov::layout::get_layout(input);
     
-    auto inputP = mNetwork.getInputsInfo().begin();
-    if (inputP == mNetwork.getInputsInfo().end())
-    {
-        return -1;
-    } 
-    InferenceEngine::InputInfo::Ptr inputInfo = inputP->second;
+    if (modelLayout.empty())
+        modelLayout = {"NCHW"};
 
-    inputInfo->setPrecision(Precision::U8);
-    inputInfo->getInputData()->setLayout(Layout::NCHW);
-
-    InferenceEngine::OutputsDataMap outputInfo = mNetwork.getOutputsInfo();
-    auto outputBlobsIt = outputInfo.begin();
-    if (outputBlobsIt == outputInfo.end())
+    mInputShape = input.get_shape();
+    bool   m_new_model = false;
+    if ( model->outputs().size() == 1)
     {
-        return -1;
+         ov::Output<ov::Node> output = model->output();
+         output_tensor_name = output.get_any_name();
+     
+         ov::Shape outputDims = output.get_shape();
+         SetoutputDims(outputDims);
+
+         m_max_detections_count = outputDims[2];
+         m_object_size = outputDims[3];
+         if (m_object_size != 7 && m_object_size != 117 ) {
+             throw std::runtime_error("Face Detection network output layer should have 7 as a last dimension");
+         }
+         if (outputDims.size() != 4 && outputDims.size() != 2 ) {
+             throw std::runtime_error("Face Detection network output should have 4 dimensions, but had " +
+                 std::to_string(outputDims.size()));
+         }
+    } else {
+         ov::OutputVector outputs = model->outputs();
+         auto cmp = [&](const ov::Output<ov::Node>& output) {
+             /* this info will be used in HP and vd detection function
+                std::cout << " output name : " << output.get_any_name() << std::endl;
+                ov::Shape outputDims = output.get_shape();
+                std::cout << outputDims[0] << " " << outputDims[1] << " " << outputDims[2] << " " << outputDims[3] << std::endl;
+              */
+             return output.get_any_name() == "data"; };
+         auto it = std::find_if(outputs.begin(), outputs.end(), cmp);
+         if (it != outputs.end())
+         m_new_model = true;
     }
 
-    DataPtr& output = outputInfo.begin()->second;
-
-    output->setPrecision(Precision::FP32);
-
-    //output->setLayout(Layout::NCHW);
+    ov::preprocess::PrePostProcessor ppp(model);
 
     if (opt.enableRemoteBlob)
     {
+        if (mInputShape.size() != 4)
+        {
+            std::cout<<"Input mInputShape size isn't 4 ! Remote blob only support fd inference."<<std::endl;
+            return -1;
+        }
+        static constexpr auto surface = "GPU_SURFACE";
+        ppp.input().tensor().set_element_type(ov::element::u8)
+            .set_color_format(ov::preprocess::ColorFormat::NV12_TWO_PLANES, {"y", "uv"})
+            .set_memory_type(ov::intel_gpu::memory_type::surface);
+        ppp.input().preprocess().convert_color(ov::preprocess::ColorFormat::BGR);
 
-        inputInfo->getPreProcess().setColorFormat(ColorFormat::NV12);
-        mSharedVAContext = gpu::make_shared_context(ie, device, opt.vaDpy);
-        mExeNetwork = mIE.LoadNetwork(mNetwork,
-                mSharedVAContext,
-                { { InferenceEngine::CLDNNConfigParams::KEY_CLDNN_NV12_TWO_INPUTS,
-                PluginConfigParams::YES } });
+        ppp.input().model().set_layout("NCHW");
+        model = ppp.build();
+
+        mVAContext = new ov::intel_gpu::ocl::VAContext(core, opt.vaDpy);
+        mCompiled_model = core.compile_model(model, *mVAContext);
+
+        auto input = model->get_parameters().at(0);
+        auto input1 = model->get_parameters().at(1);
+        auto shape = input->get_shape();
+        auto height = shape[2];
+        auto width = shape[1];
+
+        for (int i = 0 ; i < 16; i++) {
+            auto infer_request = mCompiled_model.create_infer_request();
+            reqVector.push_back(std::make_shared<ov::InferRequest>(infer_request));
+        }
     }
     else
     {
-        mExeNetwork = ie.LoadNetwork(mNetwork, device);;
+        ppp.input().tensor()
+            .set_element_type(ov::element::u8)
+            .set_layout(desiredLayout);
+
+        ppp.input().preprocess()
+            .convert_layout(modelLayout)
+            .convert_element_type(ov::element::f32);
+        ppp.input().model().set_layout(modelLayout);
+
+        model = ppp.build();
+
+        mVAContext = nullptr;
+        mCompiled_model = core.compile_model(model, device);
+        /* support most 16 channel detection */
+        for (int i = 0 ; i < 16; i++) {
+            reqVector.push_back(std::make_shared<ov::InferRequest>(mCompiled_model.create_infer_request()));
+        }
     }
+
+
+    mModel = model;
+
+    std::cout<<"Loading model "<<modelPath<<" to device "<<device<<std::endl;
     return 0;
 }
 

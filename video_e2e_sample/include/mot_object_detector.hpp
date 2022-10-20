@@ -24,8 +24,10 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <vector>
 #include <iostream>
 #include <opencv2/core/core.hpp>
-#include <samples/ocv_common.hpp>
+//#include <samples/ocv_common.hpp>
 #include "network_factory.hpp"
+#include "openvino/openvino.hpp"
+#include <opencv2/opencv.hpp>
 
 class MotObjectDetector {
 public:
@@ -43,14 +45,14 @@ public:
 private:
     void enqueue(const cv::Mat& frame);
     void submitRequest();
-    void wait();
     void fetchResults();
-
 
     NetworkInfo* network_info_;
     std::string input_name_;
     std::string im_info_name_;
-    InferenceEngine::InferRequest infer_request_;
+
+    std::shared_ptr<ov::InferRequest>  infer_request_;
+
     std::string output_name_;
     int max_detections_count_;
     int object_size_;

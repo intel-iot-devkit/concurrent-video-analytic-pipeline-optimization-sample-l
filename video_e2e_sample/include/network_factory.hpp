@@ -19,11 +19,14 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 
 #include <string>
+#include <queue>
+#include <vector>
 #include <map>
 
+#include "openvino/openvino.hpp"
 #include <inference_engine.hpp>
 #include <opencv2/core/core.hpp>
-#include <gpu/gpu_context_api_va.hpp>
+#include <intel_gpu/ocl/va.hpp>
 
 #include "sample_utils.h"
 
@@ -38,17 +41,51 @@ struct NetworkOptions
 //modify members, or delete instance of NetworkInfo.
 class NetworkInfo {
 public:
-    InferenceEngine::Core mIE;
+    ov::CompiledModel mCompiled_model;
+    ov::CompiledModel* mCompiled_model2;
+    std::shared_ptr<ov::CompiledModel> mCompiled_model1;
+    std::vector<std::shared_ptr<ov::InferRequest>>  reqVector;
+    std::shared_ptr<ov::Model> mModel;
+
+    //to be removed
+    //InferenceEngine::Core mIE;
     InferenceEngine::CNNNetwork mNetwork;
     InferenceEngine::ExecutableNetwork mExeNetwork;
-    InferenceEngine::gpu::VAContext::Ptr mSharedVAContext;
 
+    std::shared_ptr<ov::InferRequest> m_request;
+    std::string input_tensor_name;
+    std::string output_tensor_name;
+    int m_object_size;
+    int m_max_detections_count;
+    ov::Shape mInputShape;
+    ov::Shape outputDims_;
+
+    //for remote blob
+    ov::intel_gpu::ocl::VAContext *mVAContext;
     int Init(const std::string &modelPath, const std::string &device, const NetworkOptions &opt);
+
+    NetworkInfo():
+        mVAContext(nullptr)
+    {
+
+    }
+
+    ~NetworkInfo()
+    {
+        if (mVAContext)
+            delete  mVAContext;
+    }
+
 
     InferenceEngine::InferRequest CreateNewInferRequest()
     {
         mRefNum++;
         return mExeNetwork.CreateInferRequest();
+    }
+    std::shared_ptr<ov::InferRequest> CreateNewInferRequest2()
+    {
+        mRefNum++;
+        return reqVector[mRefNum-1];
     }
 
     void ReleaseInferRequest()
@@ -59,6 +96,16 @@ public:
     bool isAllInferRequestReleased()
     {
         return (mRefNum <= 0);
+    }
+
+    ov::Shape GetoutputDims()
+    {
+        return outputDims_;
+    }
+
+    void SetoutputDims(ov::Shape outputDims )
+    {
+        outputDims_ = outputDims;
     }
 
 private:

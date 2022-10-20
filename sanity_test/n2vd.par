@@ -1,0 +1,3 @@
+-i::h264 ./video/car_1080p.h264 -join -hw  -async 4 -dec_postproc -o::sink -n 10 -infer::vd ./model  -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator
+-i::h264 ./video/car_1080p.h264 -join -hw  -async 4 -dec_postproc -o::sink -n 10 -infer::vd ./model  -vpp_comp_dst_x 960 -vpp_comp_dst_y 0 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator
+-vpp_comp_only 2 -w 1920 -h 1080 -async 4 -threads 2 -join -hw  -i::source -ext_allocator -ec::rgb4 -vpp_comp_dump /tmp/1080p.rgb4

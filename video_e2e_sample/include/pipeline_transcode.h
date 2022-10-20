@@ -32,7 +32,8 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #include <opencv2/video/video.hpp>
 #endif
 #include "mfxplugin.h"
-#include "mfxplugin++.h"
+//#include "mfxplugin++.h"
+#include "mfxdeprecated.h"
 
 #include <memory>
 #include <vector>
@@ -49,16 +50,17 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #include "sysmem_allocator.h"
 #include "rotate_plugin_api.h"
 #include "mfx_multi_vpp.h"
+#include "mfxdeprecated.h"
 
-#include "mfxvideo.h"
-#include "mfxvideo++.h"
-#include "mfxmvc.h"
-#include "mfxjpeg.h"
-#include "mfxla.h"
-#include "mfxvp8.h"
+#include "vpl/mfxvideo.h"
+#include "vpl/mfxvideo++.h"
+#include "vpl/mfxmvc.h"
+#include "vpl/mfxjpeg.h"
+//#include "vpl/mfxla.h"
+#include "vpl/mfxvp8.h"
 
 #include "hw_device.h"
-#include "plugin_loader.h"
+//#include "plugin_loader.h"
 #include "sample_defs.h"
 #include "plugin_utils.h"
 #include "preset_manager.h"
@@ -67,6 +69,8 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #include "media_inference_manager.h"
 #endif
 #include "file_and_rtsp_bitstream_reader.h"
+#include "v4l2_bitstream_reader.hpp"
+#include "alsa_audiostream_reader.h"
 
 using namespace std;
 #ifdef ENABLE_INFERENCE
@@ -115,7 +119,7 @@ namespace TranscodingSample
         VppComp,           // means that pipeline makes vpp composition + encode and get data from shared buffer
         VppCompOnly,       // means that pipeline makes vpp composition and get data from shared buffer
         VppCompOnlyEncode, // means that pipeline makes vpp composition + encode and get data from shared buffer
-        FakeSink           // means that pipeline get data from share buffer and do nothing. 
+        FakeSink           // means that pipeline get data from share buffer and do nothing.
     };
 
     enum VppCompDumpMode
@@ -204,11 +208,15 @@ namespace TranscodingSample
 #if defined(LINUX32) || defined(LINUX64)
         std::string strDevicePath;
 #endif
-#if (defined(_WIN32) || defined(_WIN64)) && (MFX_VERSION >= 1031)
+//#if (defined(_WIN32) || defined(_WIN64)) && (MFX_VERSION >= 1031)
         //Adapter type
+        mfxU16 adapterType = mfxMediaAdapterType::MFX_MEDIA_UNKNOWN;
+        mfxI32 dGfxIdx     = -1;
+        mfxI32 adapterNum  = -1;
+        //#if (defined(_WIN32) || defined(_WIN64)) && (MFX_VERSION >= 1031)
         bool bPrefferiGfx;
         bool bPrefferdGfx;
-#endif
+//#endif
         bool   bIsPerf;   // special performance mode. Use pre-allocated bitstreams, output
         mfxU16 nThreadsNum; // number of internal session threads number
         bool bRobustFlag;   // Robust transcoding mode. Allows auto-recovery after hardware errors
@@ -224,6 +232,17 @@ namespace TranscodingSample
         msdk_char  strDumpVppCompFile[MSDK_MAX_FILENAME_LEN]; // VPP composition output dump file
         msdk_char  strMfxParamsDumpFile[MSDK_MAX_FILENAME_LEN];
 
+        //For VCD
+        msdk_char strV4l2SubdevName[MSDK_MAX_FILENAME_LEN];
+        msdk_char strV4l2VideoDeviceName[MSDK_MAX_FILENAME_LEN];
+        msdk_char strACaptureDeviceName[MSDK_MAX_FILENAME_LEN];
+        msdk_char strAPlayDeviceName[MSDK_MAX_FILENAME_LEN];
+        msdk_char strAMP3Name[MSDK_MAX_FILENAME_LEN];
+        msdk_char strAMP4Name[MSDK_MAX_FILENAME_LEN];
+
+        ELTDevicePort ltDevicePort;
+        unsigned int vRefreshRate;
+
 #ifdef ENABLE_INFERENCE
         //Support inference in pipeline
         int InferType; //if > 0, will run inference after decoding
@@ -236,10 +255,13 @@ namespace TranscodingSample
 
         uint sinkNum; //The number of sink encode sessions
         uint sourceNum; //The number of source decode sessions
-        bool RtspDumpOnly; // No transcoding. Only Rtsp dump is enabled. 
-        
-        msdk_char  strIRFileDir[MSDK_MAX_FILENAME_LEN]; // directory that contains IR files and label file 
-        msdk_char  strRtspSaveFile[MSDK_MAX_FILENAME_LEN]; // save rtsp to local file  
+        bool RtspDumpOnly; // No transcoding. Only Rtsp dump is enabled.
+        bool bV4l2RawInput; //The bitStream input is the raw data from v4l2 FrameWork.
+        bool bAlsaAudioInput; //The audio stream input is the raw data from Alsa FrameWork.
+
+        msdk_char  strIRFileDir[MSDK_MAX_FILENAME_LEN]; // directory that contains IR files and label file
+        msdk_char  strRtspSaveFile[MSDK_MAX_FILENAME_LEN]; // save rtsp to local file
+        msdk_char  strDetectResultSaveFile[MSDK_MAX_FILENAME_LEN]={'\0'}; // save detect results to local file
 
         // specific encode parameters
         mfxU16 nTargetUsage;
@@ -353,7 +375,7 @@ namespace TranscodingSample
 
         sVppCompDstRect* pVppCompDstRects;
 
-        bool bUseOpaqueMemory;
+//        bool bUseOpaqueMemory;
         bool bForceSysMem;
         mfxU16 VppOutPattern;
         mfxU16 nGpuCopyMode;
@@ -420,7 +442,7 @@ namespace TranscodingSample
        mfxU16            Locked;
        mfxENCInput       encInput;
        mfxENCOutput      encOutput;
-    };
+    }; 
 
     struct ExtendedSurface
     {
@@ -513,17 +535,18 @@ namespace TranscodingSample
                     return;
 
                 FILE* dump_file = NULL;
-                if (!MSDK_FOPEN(dump_file, file_name, MSDK_STRING("a")))
+                if (!MSDK_FOPEN(dump_file, file_name, MSDK_STRING("a")) && (dump_file != NULL))
                 {
                     for (std::vector<mfxF64>::const_iterator it = m_time_deltas.begin(); it != m_time_deltas.end(); ++it)
                     {
                         fprintf(dump_file, "%.3f, ", (*it));
                     }
-                    fclose(dump_file);
                 }
                 else
                 {
                     perror("DumpDeltas: file cannot be open");
+                    if (dump_file != NULL)
+                        fclose(dump_file);
                 }
             }
         protected:
@@ -637,20 +660,30 @@ namespace TranscodingSample
         virtual ~FileBitstreamProcessor();
         virtual mfxStatus SetReader(std::unique_ptr<FileAndRTSPBitstreamReader>& reader);
         virtual mfxStatus SetReader(std::unique_ptr<CSmplYUVReader>& reader);
+        virtual mfxStatus SetReader(std::unique_ptr<V4l2BitstreamReader>& reader);
+        virtual mfxStatus SetReader(std::unique_ptr<AlsaAudioStreamReader>& reader);
         virtual mfxStatus SetWriter(std::unique_ptr<CSmplBitstreamWriter>& writer);
         virtual mfxStatus SetWriterFileName(msdk_char *pFileName);
+        virtual mfxStatus SetMp4FileName(msdk_char* pFileName, int videoWidth, int videoHeight);
         virtual mfxStatus GetInputBitstream(mfxBitstreamWrapper **pBitstream);
         virtual mfxStatus GetInputFrame(mfxFrameSurface1 *pSurface);
+        virtual mfxStatus GetV4l2InputFrame(mfxFrameSurface1* pSurface);
+        virtual mfxStatus QueryV4l2FrameInfo(v4l2FrameInfo& frameInfo);
         virtual mfxStatus ProcessOutputBitstream(mfxBitstreamWrapper* pBitstream);
+        virtual mfxStatus StartAudioStreamProcess();
         virtual mfxStatus ResetInput();
         virtual mfxStatus ResetOutput();
 
     protected:
         std::unique_ptr<CSmplBitstreamReader> m_pFileReader;
         std::unique_ptr<CSmplYUVReader> m_pYUVFileReader;
+        std::unique_ptr<V4l2BitstreamReader> m_pV4l2Reader;
+        std::unique_ptr<AlsaAudioStreamReader> m_pAlsaReader;
         // for performance options can be zero
         std::unique_ptr<CSmplBitstreamWriter> m_pFileWriter;
+
         mfxBitstreamWrapper m_Bitstream;
+        AVMP4Muxer* m_pAVMP4Muxer;
     private:
         DISALLOW_COPY_AND_ASSIGN(FileBitstreamProcessor);
     };
@@ -667,12 +700,13 @@ namespace TranscodingSample
                                void* hdl,
                                CTranscodingPipeline *pParentPipeline,
                                SafetySurfaceBuffer  **pBuffer,
-                               FileBitstreamProcessor   *pBSProc);
+                               FileBitstreamProcessor   *pBSProc,
+                               VPLImplementationLoader* mfxLoader);
 
         // frames allocation is suspended for heterogeneous pipeline
         virtual mfxStatus CompleteInit();
         virtual void      Close();
-        virtual mfxStatus Reset();
+        virtual mfxStatus Reset(VPLImplementationLoader* mfxLoader);
         virtual mfxStatus Join(MFXVideoSession *pChildSession);
         virtual mfxStatus Run();
         virtual mfxStatus FlushLastFrames(){return MFX_ERR_NONE;}
@@ -704,7 +738,7 @@ namespace TranscodingSample
         bool IsPrefferdGfx() { return bPrefferdGfx; };
 #endif
 #ifdef ENABLE_INFERENCE
-        void SetVADisplayHandle(VADisplay vaDpy) {mVADpy = vaDpy;}; 
+        void SetVADisplayHandle(VADisplay vaDpy) {mVADpy = vaDpy;};
 #endif
     protected:
         virtual mfxStatus CheckRequiredAPIVersion(mfxVersion& version, sInputParams *pParams);
@@ -717,20 +751,20 @@ namespace TranscodingSample
         virtual mfxStatus DecodeLastFrame(ExtendedSurface *pExtSurface);
         virtual mfxStatus VPPOneFrame(ExtendedSurface *pSurfaceIn, ExtendedSurface *pExtSurface);
         virtual mfxStatus EncodeOneFrame(ExtendedSurface *pExtSurface, mfxBitstreamWrapper *pBS);
-        virtual mfxStatus PreEncOneFrame(ExtendedSurface *pInSurface, ExtendedSurface *pOutSurface);
+//        virtual mfxStatus PreEncOneFrame(ExtendedSurface *pInSurface, ExtendedSurface *pOutSurface);
 
         virtual mfxStatus DecodePreInit(sInputParams *pParams);
         virtual mfxStatus VPPPreInit(sInputParams *pParams);
         virtual mfxStatus EncodePreInit(sInputParams *pParams);
-        virtual mfxStatus PreEncPreInit(sInputParams *pParams);
+//        virtual mfxStatus PreEncPreInit(sInputParams *pParams);
 
         mfxVideoParam GetDecodeParam();
 
-        mfxExtOpaqueSurfaceAlloc GetDecOpaqueAlloc()
+ /*       mfxExtOpaqueSurfaceAlloc GetDecOpaqueAlloc()
         {
             mfxExtOpaqueSurfaceAlloc* opaq = m_pmfxVPP ? m_mfxVppParams : m_mfxDecParams;
             return opaq ? *opaq : mfxExtOpaqueSurfaceAlloc();
-        };
+        };  */
 
         mfxExtMVCSeqDesc GetDecMVCSeqDesc()
         {
@@ -744,20 +778,20 @@ namespace TranscodingSample
         mfxStatus AllocFrames(mfxFrameAllocRequest  *pRequest, bool isDecAlloc);
         mfxStatus AllocFrames();
 
-        mfxStatus CorrectPreEncAuxPool(mfxU32 num_frames_in_pool);
-        mfxStatus AllocPreEncAuxPool();
+//        mfxStatus CorrectPreEncAuxPool(mfxU32 num_frames_in_pool);
+//        mfxStatus AllocPreEncAuxPool();
 
         // need for heterogeneous pipeline
         mfxStatus CalculateNumberOfReqFrames(mfxFrameAllocRequest  &pRequestDecOut, mfxFrameAllocRequest  &pRequestVPPOut);
         void      CorrectNumberOfAllocatedFrames(mfxFrameAllocRequest  *pNewReq);
         void      FreeFrames();
 
-        void      FreePreEncAuxPool();
+//        void      FreePreEncAuxPool();
         mfxStatus LoadStaticSurface();
 
         mfxFrameSurface1* GetFreeSurface(bool isDec, mfxU64 timeout);
         mfxU32 GetFreeSurfacesCount(bool isDec);
-        PreEncAuxBuffer*  GetFreePreEncAuxBuffer();
+//CorrectPreEncAuxPool        PreEncAuxBuffer*  GetFreePreEncAuxBuffer();
         void SetEncCtrlRT(ExtendedSurface& extSurface, bool bInsertIDR);
 
         // parameters configuration functions
@@ -765,13 +799,13 @@ namespace TranscodingSample
         mfxStatus InitVppMfxParams(sInputParams *pInParams);
         virtual mfxStatus InitEncMfxParams(sInputParams *pInParams);
         mfxStatus InitPluginMfxParams(sInputParams *pInParams);
-        mfxStatus InitPreEncMfxParams(sInputParams *pInParams);
+//        mfxStatus InitPreEncMfxParams(sInputParams *pInParams);
 
         void FillFrameInfoForEncoding(mfxFrameInfo& info, sInputParams *pInParams);
 
         mfxStatus AllocAndInitVppDoNotUse(sInputParams *pInParams);
         mfxStatus AllocMVCSeqDesc();
-        mfxStatus InitOpaqueAllocBuffers();
+//        mfxStatus InitOpaqueAllocBuffers();
 
         void FreeVppDoNotUse();
         void FreeMVCSeqDesc();
@@ -788,14 +822,14 @@ namespace TranscodingSample
 
         msdk_char *FindChar(msdk_char *strSrcString, mfxU16 nStrLen, msdk_char chr);
 
-	/* Add sequence number as filename suffix to save*/
+    /* Add sequence number as filename suffix to save*/
         mfxStatus AddSuffixToFilename(msdk_char *strFileName, msdk_char* strSuffixFileName);
 
         void NoMoreFramesSignal();
         mfxStatus AddLaStreams(mfxU16 width, mfxU16 height);
 
-        void LockPreEncAuxBuffer(PreEncAuxBuffer* pBuff);
-        void UnPreEncAuxBuffer  (PreEncAuxBuffer* pBuff);
+//        void LockPreEncAuxBuffer(PreEncAuxBuffer* pBuff);
+//        void UnPreEncAuxBuffer  (PreEncAuxBuffer* pBuff);
 
         mfxU32 GetNumFramesForReset();
         void   SetNumFramesForReset(mfxU32 nFrames);
@@ -803,23 +837,26 @@ namespace TranscodingSample
         void   HandlePossibleGpuHang(mfxStatus& sts);
 
         mfxStatus   SetAllocatorAndHandleIfRequired();
-        mfxStatus   LoadGenericPlugin();
+//        mfxStatus   LoadGenericPlugin();
 
         mfxBitstreamWrapper *m_pmfxBS;  // contains encoded input data
 
         mfxVersion m_Version; // real API version with which library is initialized
 
-        std::unique_ptr<MFXVideoSession>  m_pmfxSession;
+        mfxLoader m_mfxLoader;
+
+//        std::unique_ptr<MFXVideoSession>  m_pmfxSession;
+        std::unique_ptr<MainVideoSession>  m_pmfxSession;
         std::unique_ptr<MFXVideoDECODE>   m_pmfxDEC;
         std::unique_ptr<MFXVideoENCODE>   m_pmfxENC;
         std::unique_ptr<MFXVideoMultiVPP> m_pmfxVPP; // either VPP or VPPPlugin which wraps [VPP]-Plugin-[VPP] pipeline
-        std::unique_ptr<MFXVideoENC>      m_pmfxPreENC;
-        std::unique_ptr<MFXVideoUSER>     m_pUserDecoderModule;
-        std::unique_ptr<MFXVideoUSER>     m_pUserEncoderModule;
-        std::unique_ptr<MFXVideoUSER>     m_pUserEncModule;
-        std::unique_ptr<MFXPlugin>        m_pUserDecoderPlugin;
-        std::unique_ptr<MFXPlugin>        m_pUserEncoderPlugin;
-        std::unique_ptr<MFXPlugin>        m_pUserEncPlugin;
+//        std::unique_ptr<MFXVideoENC>      m_pmfxPreENC;
+//        std::unique_ptr<MFXVideoUSER>     m_pUserDecoderModule;
+//        std::unique_ptr<MFXVideoUSER>     m_pUserEncoderModule;
+//        std::unique_ptr<MFXVideoUSER>     m_pUserEncModule;
+//        std::unique_ptr<MFXPlugin>        m_pUserDecoderPlugin;
+//        std::unique_ptr<MFXPlugin>        m_pUserEncoderPlugin;
+//        std::unique_ptr<MFXPlugin>        m_pUserEncPlugin;
 
         mfxFrameAllocResponse           m_mfxDecResponse;  // memory allocation response for decoder
         mfxFrameAllocResponse           m_mfxEncResponse;  // memory allocation response for encoder
@@ -846,8 +883,8 @@ namespace TranscodingSample
         mfxU16 m_EncSurfaceType; // actual type of encoder surface pool
         mfxU16 m_DecSurfaceType; // actual type of decoder surface pool
 
-        typedef std::vector<PreEncAuxBuffer>    PreEncAuxArray;
-        PreEncAuxArray                          m_pPreEncAuxPool;
+//        typedef std::vector<PreEncAuxBuffer>    PreEncAuxArray;
+//        PreEncAuxArray                          m_pPreEncAuxPool;
 
         // transcoding pipeline specific
         typedef std::list<ExtendedBS*>       BSList;
@@ -872,6 +909,9 @@ namespace TranscodingSample
         MfxVideoParamsWrapper          m_mfxPreEncParams;
         mfxU32                         m_nTimeout;
         bool                           m_bUseOverlay;
+        bool                           m_bV4l2RawInput; //The bitStream input is the raw data from v4l2 device.
+        bool                           m_bAlsaAudioInput;
+        bool                           m_bAudiostarted;
 
         bool                           m_bDropDecOutput; // only works with o::raw when the file name is /dev/null
 
@@ -891,6 +931,7 @@ namespace TranscodingSample
         mfxU32         m_nID;
         mfxU16         m_AsyncDepth;
         mfxU32         m_nProcessedFramesNum;
+        msdk_char      m_strDetectResultSaveFile[MSDK_MAX_FILENAME_LEN]={'\0'}; // save detect results to local file
         /* add for jpeg transcoding */
         mfxU16         m_nFrameSkip; // number of frames to skip
         msdk_char      m_strBSFile[MSDK_MAX_FILENAME_LEN]; // destination bitstream file
@@ -903,7 +944,7 @@ namespace TranscodingSample
         mfxU32         m_nVPPCompEnable;
         mfxI32         m_libvaBackend;
 
-        bool           m_bUseOpaqueMemory; // indicates if opaque memory is used in the pipeline
+//        bool           m_bUseOpaqueMemory; // indicates if opaque memory is used in the pipeline
 
         mfxSyncPoint   m_LastDecSyncPoint;
 
@@ -992,7 +1033,7 @@ namespace TranscodingSample
         VADisplay mVADpy;
 #endif
         int mNumSurf4Comp; //Number of input surfaces for N to 1 composition
-        uint m_sinkNum;    //Number of sink sessions that consume the surface 
+        uint m_sinkNum;    //Number of sink sessions that consume the surface
         uint m_sourceNum;  //Number of source sessions that produce the surface
     private:
         DISALLOW_COPY_AND_ASSIGN(CTranscodingPipeline);

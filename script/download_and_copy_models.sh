@@ -6,11 +6,12 @@ mkdir -p $target_dir
 
 if [[ ! -d "${INTEL_OPENVINO_DIR}" ]];
 then echo "Please make sure openvino has been installed and enviroment variables has been set by "
-    echo "source intel/openvino_2021/bin/setupvars.sh"
+    echo "source intel/openvino_2022/setupvars.sh"
     exit -1;
 fi
-cd ${INTEL_OPENVINO_DIR}
-cd deployment_tools/tools/model_downloader
+
+pip install openvino-dev==2021.4.2
+export PATH=$PATH=~/.local/bin
 
 model_list="face-detection-retail-0004 human-pose-estimation-0001 vehicle-license-plate-detection-barrier-0106 vehicle-attributes-recognition-barrier-0039 person-detection-retail-0013 person-reidentification-retail-0288"
 
@@ -21,21 +22,21 @@ do
         echo "model/$i exists. No need to download"
     else
 
-        if [ -f "${INTEL_OPENVINO_DIR}/deployment_tools/open_model_zoo/tools/downloader/intel/$i/FP16/$i.xml" ]
+        if [ -f "/home/${USER}/intel/$i/FP16/$i.xml" ]
         then
             echo "Copy $i IR files to directory model/"
-            cp ${INTEL_OPENVINO_DIR}/deployment_tools/open_model_zoo/tools/downloader/intel/$i/FP16/$i.xml ${INTEL_OPENVINO_DIR}/deployment_tools/open_model_zoo/tools/downloader/intel/$i/FP16/$i.bin $root_path/$target_dir/
+            cp /home/${USER}/intel/$i/FP16/$i.xml /home/${USER}/intel/$i/FP16/$i.bin $root_path/$target_dir/
         else
-            echo "./downloader.py --name $i  --precisions FP16 --num_attempts 10"
-            sudo -E ./downloader.py --name $i  --precisions FP16 --num_attempts 10
+            echo " omz_downloader--name $i  --precisions FP16 --num_attempts 10"
+            omz_downloader --name $i  --precisions FP16 --num_attempts 10 -o /home/${USER}/
 
-            if [ -f "${INTEL_OPENVINO_DIR}/deployment_tools/open_model_zoo/tools/downloader/intel/$i/FP16/$i.xml" ]
+            if [ -f "/home/${USER}/intel/$i/FP16/$i.xml" ]
             then
                 echo "$i was downloaded successfully"
-                cp ${INTEL_OPENVINO_DIR}/deployment_tools/open_model_zoo/tools/downloader/intel/$i/FP16/$i.xml ${INTEL_OPENVINO_DIR}/deployment_tools/open_model_zoo/tools/downloader/intel/$i/FP16/$i.bin $root_path/$target_dir/
+                cp /home/${USER}/intel/$i/FP16/$i.xml /home/${USER}/intel/$i/FP16/$i.bin $root_path/$target_dir/
             else
                 echo "Failed to download $i model. "
-                echo "Please manually run command:${INTEL_OPENVINO_DIR}/deployment_tools/tools/model_downloader/downloader.py --name $i --precisions FP16" 
+                echo "Please manually run command:omz_downloader --name $i --precisions FP16" 
             fi
 
         fi

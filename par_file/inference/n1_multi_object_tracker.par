@@ -1,2 +1,2 @@
 -i::h264 ./video/1080p.h264 -join -hw  -async 1 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 960 -vpp_comp_dst_h 540 -ext_allocator -infer::mot ./model 
--vpp_comp_only 1 -w 960 -h 540 -async 1 -threads 2 -join -hw  -i::source -ext_allocator -ec::rgb4 -rdrm-DisplayPort
+-vpp_comp_only 1 -w 960 -h 540 -async 1 -threads 2 -join -hw  -i::source -ext_allocator -ec::rgb4 -rdrm

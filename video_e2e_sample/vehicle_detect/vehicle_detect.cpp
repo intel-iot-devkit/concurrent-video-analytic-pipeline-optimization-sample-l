@@ -23,7 +23,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 #include <opencv2/imgproc/imgproc.hpp>
-#include <samples/ocv_common.hpp>
+//#include <samples/ocv_common.hpp>
 #include <samples/common.hpp>
 
 #include "vehicle_detect.hpp"
@@ -61,8 +61,10 @@ int VehicleDetect::Init(const std::string& detectorModelPath,
     }
 
     std::cout<<"Loading network "<<detectorModelPath<<" on device "<<targetDeviceName<<" is done."<<std::endl;
+    /*
     InferenceEngine::CNNNetwork &detectorVDNetwork = mVDNetworkInfo->mNetwork;
 
+*/
     //Vehicle attributes detector
     mVANetworkInfo = NetworkFactory::GetNetwork(vehicleAttribsModelPath, targetDeviceName, optVA);
 
@@ -71,7 +73,7 @@ int VehicleDetect::Init(const std::string& detectorModelPath,
         std::cout<<"NetworkFactory::GetNetwork("<<detectorModelPath<<","<<targetDeviceName<<") failed!"<<std::endl;
         return -1;
     }
-
+/*
     std::cout<<"Loading network "<<detectorModelPath<<" on device "<<targetDeviceName<<" is done."<<std::endl;
     InferenceEngine::CNNNetwork &detectorVANetwork = mVANetworkInfo->mNetwork;
 
@@ -99,9 +101,14 @@ int VehicleDetect::Init(const std::string& detectorModelPath,
     mDetectorObjectSize = outputDims[3];
     output->setPrecision(Precision::FP32);
     output->setLayout(Layout::NCHW);
+*/
+    mVDDetectorRequest1 =  mVDNetworkInfo->CreateNewInferRequest2();
+    mVDDetectorInputName = mVDNetworkInfo->input_tensor_name;
+    mDetectorOutputName = mVDNetworkInfo->output_tensor_name;
+    mDetectorMaxProposalCount= mVDNetworkInfo->m_max_detections_count;
+    mDetectorObjectSize = mVDNetworkInfo->m_object_size;
 
-    mVDDetectorRequest =  mVDNetworkInfo->CreateNewInferRequest();
-
+/*
     auto VAInputP = detectorVANetwork.getInputsInfo().begin();
     if (VAInputP == detectorVANetwork.getInputsInfo().end())
     {
@@ -126,7 +133,9 @@ int VehicleDetect::Init(const std::string& detectorModelPath,
     }
     mVAOutputNameForType = (outputBlobsIt)->second->getName();  // type is the second output
 
-    mVARequest =  mVANetworkInfo->CreateNewInferRequest();
+*/
+    mVARequest1 =  mVANetworkInfo->CreateNewInferRequest2();
+    mVADetectorInputName = mVANetworkInfo->input_tensor_name;
     return 0;
 }
 
@@ -148,11 +157,20 @@ void VehicleDetect::SetSrcImageSize(int width, int height)
 void VehicleDetect::Detect(const cv::Mat& image, std::vector<VehicleDetectResult>& results, int maxObjNum)
 {
   
-    InferenceEngine::Blob::Ptr input = mVDDetectorRequest.GetBlob(mVDDetectorInputName);
-    matU8ToBlob<uint8_t>(image, input);
-    mVDDetectorRequest.Infer();
+    ov::Tensor inputTensor = mVDDetectorRequest1->get_tensor(mVDDetectorInputName);
+    static const ov::Layout layout{"NHWC"};
+    const ov::Shape& shape = inputTensor.get_shape(); 
+    cv::Size size{int(shape[ov::layout::width_idx(layout)]), int(shape[ov::layout::height_idx(layout)])};
+    cv::resize(image, cv::Mat{size, CV_8UC3, inputTensor.data()}, size);
 
+    mVDDetectorRequest1->infer();
+    /*
+    InferenceEngine::Blob::Ptr input = mVDDetectorRequest.GetBlob(mVDDetectorInputName);
+   // matU8ToBlob<uint8_t>(image, input);
+    mVDDetectorRequest.Infer();
     const float *detections = mVDDetectorRequest.GetBlob(mDetectorOutputName)->buffer().as<float *>();
+    */
+    const float *detections = mVDDetectorRequest1->get_tensor(mDetectorOutputName).data<float>();
     if (maxObjNum < 0 || maxObjNum > mDetectorMaxProposalCount)
     {
         maxObjNum = mDetectorMaxProposalCount; 
@@ -190,7 +208,8 @@ void VehicleDetect::Detect(const cv::Mat& image, std::vector<VehicleDetectResult
         }
     }
 
-    InferenceEngine::Blob::Ptr VAInput = mVARequest.GetBlob(mVADetectorInputName);
+    ov::Tensor inputTensor1 = mVARequest1->get_tensor(mVADetectorInputName);
+//    InferenceEngine::Blob::Ptr VAInput = mVARequest.GetBlob(mVADetectorInputName);
     for (unsigned int i = 0; i < results.size(); i++)
     {
         //image's size can be different from source image
@@ -200,12 +219,20 @@ void VehicleDetect::Detect(const cv::Mat& image, std::vector<VehicleDetectResult
         clip.y = clip.y * image.rows / mSrcImageSize.height;
         clip.height = clip.height * image.rows / mSrcImageSize.height;
         cv::Mat vehicle = image(clip);
-        matU8ToBlob<uint8_t>(vehicle, VAInput);
-        mVARequest.Infer();
+       // matU8ToBlob<uint8_t>(vehicle, VAInput);
+        static const ov::Layout layout{"NHWC"};
+        const ov::Shape& shape = inputTensor1.get_shape(); 
+        cv::Size size{int(shape[ov::layout::width_idx(layout)]), int(shape[ov::layout::height_idx(layout)])};
+        cv::resize(vehicle, cv::Mat{size, CV_8UC3, inputTensor1.data()}, size);
 
-        auto colorsValues = mVARequest.GetBlob(mVAOutputNameForColor)->buffer().as<float*>();
+        mVARequest1->infer();
+
+        float * colorsValues = mVARequest1->get_tensor("color").data<float>();
+
+     //   auto colorsValues = mVARequest.GetBlob(mVAOutputNameForColor)->buffer().as<float*>();
         // 4 possible types for each vehicle and we should select the one with the maximum probability
-        auto typesValues  = mVARequest.GetBlob(mVAOutputNameForType)->buffer().as<float*>();
+        float * typesValues = mVARequest1->get_tensor("type").data<float>();
+//        auto typesValues  = mVARequest.GetBlob(mVAOutputNameForType)->buffer().as<float*>();
 
         const auto color_id = std::max_element(colorsValues, colorsValues + 7) - colorsValues;
         const auto type_id =  std::max_element(typesValues,  typesValues  + 4) - typesValues;

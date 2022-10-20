@@ -2,4 +2,4 @@
 -i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 1920 -vpp_comp_dst_y 0 -vpp_comp_dst_w 1920 -vpp_comp_dst_h 1080 -ext_allocator
 -i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 1920 -vpp_comp_dst_y 1080 -vpp_comp_dst_w 1920 -vpp_comp_dst_h 1080 -ext_allocator
 -i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc   -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 1080 -vpp_comp_dst_w 1920 -vpp_comp_dst_h 1080 -ext_allocator
--vpp_comp_only 4 -w 3840 -h 2160 -async 4 -threads 2 -join -hw  -i::source -ext_allocator -ec::rgb4 -rdrm-DisplayPort
+-vpp_comp_only 4 -w 3840 -h 2160 -async 4 -threads 2 -join -hw  -i::source -ext_allocator -ec::rgb4 -rdrm

@@ -1,0 +1,3 @@
+-i::v4l2 /dev/video52 /dev/v4l-subdev7  mipi_port_single -acapture hw:0,1 -aplay hw:1,0 -amux file1.mp4 -join -hw -async 2 -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 3840 -vpp_comp_dst_h 2160 -ext_allocator
+-vpp_comp 1 -w 3840 -h 2160 -async 2 -threads 2 -join -hw  -threads 2 -i::source -ext_allocator -ec::nv12 -o::h264 file1.h264 -vmux ./file1.mp4
+-vpp_comp_only 1 -w 3840 -h 2160 -async 2 -threads 2 -join -hw  -i::source -ext_allocator -ec::rgb4 -rdrm

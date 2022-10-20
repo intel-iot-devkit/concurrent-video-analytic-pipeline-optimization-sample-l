@@ -20,7 +20,7 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #ifndef __SAMPLE_MULTI_TRANSCODE_H__
 #define __SAMPLE_MULTI_TRANSCODE_H__
 
-#include "mfxdefs.h"
+#include "vpl/mfxdefs.h"
 #if (defined(_WIN32) || defined(_WIN64)) && (MFX_VERSION >= 1031)
 #include "mfxadapter.h"
 #endif
@@ -29,6 +29,7 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #include <mutex>
 #include <condition_variable>
 #include <thread>
+#include <signal.h>
 
 #include "sample_queue.h"
 #include "transcode_utils.h"
@@ -48,6 +49,8 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #include "vaapi_allocator.h"
 #endif
 
+#include "alsa_audiostream_reader.h"
+#include "vpl_implementation_loader.h"
 #ifndef MFX_VERSION
 #error MFX_VERSION not defined
 #endif
@@ -82,18 +85,30 @@ namespace TranscodingSample
         // command line parser
         CmdProcessor m_parser;
         // threads contexts to process playlist
-        std::vector<ThreadTranscodeContext*> m_pThreadContextArray;
+//        std::vector<ThreadTranscodeContext*> m_pThreadContextArray;
+	std::vector<std::unique_ptr<ThreadTranscodeContext>> m_pThreadContextArray;
         // allocator for each session
-        std::vector<GeneralAllocator*>       m_pAllocArray;
+//        std::vector<GeneralAllocator*>       m_pAllocArray;
+	std::vector<std::unique_ptr<GeneralAllocator>> m_pAllocArray;
         // input parameters for each session
         std::vector<sInputParams>            m_InputParamsArray;
         // safety buffers
         // needed for heterogeneous pipeline
-        std::vector<SafetySurfaceBuffer*>    m_pBufferArray;
+//        std::vector<SafetySurfaceBuffer*>    m_pBufferArray;
+	std::vector<std::unique_ptr<SafetySurfaceBuffer>> m_pBufferArray;
 
-        std::vector<FileBitstreamProcessor*> m_pExtBSProcArray;
-        std::unique_ptr<mfxAllocatorParams>    m_pAllocParam;
-        std::unique_ptr<CHWDevice>             m_hwdev;
+//        std::vector<FileBitstreamProcessor*> m_pExtBSProcArray;
+	std::vector<std::unique_ptr<FileBitstreamProcessor>> m_pExtBSProcArray;
+
+//        std::unique_ptr<mfxAllocatorParams>    m_pAllocParam;
+	std::vector<std::shared_ptr<mfxAllocatorParams>> m_pAllocParams;
+
+//        std::unique_ptr<CHWDevice>             m_hwdev;
+	std::vector<std::unique_ptr<CHWDevice>> m_hwdevs;
+	
+	mfxAccelerationMode m_accelerationMode;	
+	std::unique_ptr<VPLImplementationLoader> m_pLoader;
+
         msdk_tick                            m_StartTime;
         // need to work with HW pipeline
         mfxHandleType                        m_eDevType;

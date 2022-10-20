@@ -48,6 +48,7 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #include <cstring>
 #include <cstdlib>
 #include <algorithm>
+#include <iostream>
 
 using namespace TranscodingSample;
 
@@ -363,7 +364,7 @@ void TranscodingSample::PrintHelp()
     msdk_printf(MSDK_STRING("\n"));
     msdk_printf(MSDK_STRING("\n"));
     msdk_printf(MSDK_STRING("RTSP parameters :\n"));
-    msdk_printf(MSDK_STRING("  -rtsp_save <file_name>       Save the input RTSP stream to local file. This option must be used together with input RTSP stream(-i rtsp:\\rtspurl).")); 
+    msdk_printf(MSDK_STRING("  -rtsp_save <file_name>       Save the input RTSP stream to local file. This option must be used together with input RTSP stream(-i rtsp:\\rtspurl)."));
     msdk_printf(MSDK_STRING("\n"));
     msdk_printf(MSDK_STRING("ParFile format:\n"));
     msdk_printf(MSDK_STRING("  ParFile is extension of what can be achieved by setting pipeline in the command\n"));
@@ -1061,7 +1062,7 @@ void ParseMCTFParams(msdk_char* strInput[], mfxU32 nArgNum, mfxU32& curArg, sInp
                 {
                     // take very first FS value from the file and use it as a value for FilterStrength
                     const sMctfRunTimeParam* rtParam = pParams->mctfParam.rtParams.GetCurParam();
-		    if (rtParam)
+            if (rtParam)
                     {
                         pParams->mctfParam.params.FilterStrength = rtParam->FilterStrength;
                     }
@@ -1407,24 +1408,79 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
     }
     // default implementation
     InputParams.libType = MFX_IMPL_HARDWARE_ANY;
-    InputParams.bUseOpaqueMemory = true;
+//    InputParams.bUseOpaqueMemory = true;
     InputParams.eModeExt = Native;
 
     for (mfxU32 i = 0; i < argc; i++)
     {
         // process multi-character options
-        if ( (0 == msdk_strncmp(MSDK_STRING("-i::"), argv[i], msdk_strlen(MSDK_STRING("-i::"))))
-          && (0 != msdk_strncmp(argv[i]+4, MSDK_STRING("source"), msdk_strlen(MSDK_STRING("source")))) )
+        if ((0 == msdk_strncmp(MSDK_STRING("-i::"), argv[i], msdk_strlen(MSDK_STRING("-i::"))))
+            && (0 != msdk_strncmp(argv[i] + 4, MSDK_STRING("source"), msdk_strlen(MSDK_STRING("source")))))
         {
-            sts = StrFormatToCodecFormatFourCC(argv[i]+4, InputParams.DecodeId);
+            sts = StrFormatToCodecFormatFourCC(argv[i] + 4, InputParams.DecodeId);
+            if (sts == MFX_ERR_NONE)
+            {
+                VAL_CHECK(i + 1 == argc, i, argv[i]);
+                i++;
+                SIZE_CHECK((msdk_strlen(argv[i]) + 1) > MSDK_ARRAY_LEN(InputParams.strSrcFile));
+                msdk_opt_read(argv[i], InputParams.strSrcFile);
+            }
+            else if (sts == MFX_ERR_UNSUPPORTED)
+            {
+                if (0 == msdk_strcmp(argv[i] + 4, MSDK_STRING("v4l2")))
+                {
+                    sts = MFX_ERR_NONE;
+                    InputParams.bV4l2RawInput = true;
+                    InputParams.DecodeId = MFX_CODEC_DUMP;
+
+                    i++;
+                    if (0 == msdk_strncmp(MSDK_STRING("-"), argv[i], msdk_strlen(MSDK_STRING("-"))))
+                    {
+                        msdk_printf(MSDK_STRING(" V4l2 VideoDeviceName not found \n"));
+                        return MFX_ERR_UNSUPPORTED;
+                    }
+                    msdk_opt_read(argv[i], InputParams.strV4l2VideoDeviceName);
+                    msdk_printf(MSDK_STRING("InputParams.strV4l2VideoDeviceName: %s \n"), InputParams.strV4l2VideoDeviceName);
+
+                    i++;
+                    if (0 == msdk_strncmp(MSDK_STRING("-"), argv[i], msdk_strlen(MSDK_STRING("-"))))
+                    {
+                        msdk_printf(MSDK_STRING(" V4l2 SubdevName not found \n"));
+                        return MFX_ERR_UNSUPPORTED;
+                    }
+                    msdk_opt_read(argv[i], InputParams.strV4l2SubdevName);
+                    msdk_printf(MSDK_STRING("InputParams.strV4l2SubdevName: %s \n"), InputParams.strV4l2SubdevName);
+
+                    InputParams.ltDevicePort = LT_MIPI_DUAL_1;
+                    i++;
+                    if (0 == msdk_strncmp(MSDK_STRING("-"), argv[i], msdk_strlen(MSDK_STRING("-"))))
+                    {
+                        msdk_printf(MSDK_STRING(" Warning! Maybe you should set MIPI port if you have multiple ports for lt cards!  \n"));//compatible with VCD R1
+                    }
+                    else
+                    {
+                        msdk_char strV4l2MipiPort[MSDK_MAX_FILENAME_LEN];
+                        msdk_opt_read(argv[i], strV4l2MipiPort);
+                        if (0 == msdk_strcmp(strV4l2MipiPort, MSDK_STRING("mipi_port_dual_1")))
+                        {
+                            InputParams.ltDevicePort = LT_MIPI_DUAL_1;
+                        }
+                        if (0 == msdk_strcmp(strV4l2MipiPort, MSDK_STRING("mipi_port_dual_2")))
+                        {
+                            InputParams.ltDevicePort = LT_MIPI_DUAL_2;
+                        }
+                        if (0 == msdk_strcmp(strV4l2MipiPort, MSDK_STRING("mipi_port_single")))
+                        {
+                            InputParams.ltDevicePort = LT_MIPI_SINGLE;
+                        }
+                    }
+                }
+            }
             if (sts != MFX_ERR_NONE)
             {
                 return MFX_ERR_UNSUPPORTED;
             }
-            VAL_CHECK(i+1 == argc, i, argv[i]);
-            i++;
-            SIZE_CHECK((msdk_strlen(argv[i])+1) > MSDK_ARRAY_LEN(InputParams.strSrcFile));
-            msdk_opt_read(argv[i], InputParams.strSrcFile);
+
             if (InputParams.eMode == Source)
             {
                 switch(InputParams.DecodeId)
@@ -1443,6 +1499,79 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
             {
                 InputParams.DecodeId = MFX_CODEC_AVC;
                 InputParams.bIsMVC = true;
+            }
+        }
+        else if ((0 == msdk_strncmp(MSDK_STRING("-acapture"), argv[i], msdk_strlen(MSDK_STRING("-acapture")))))
+        {
+            VAL_CHECK(i + 1 == argc, i, argv[i]);
+            i++;
+            if (0 == msdk_strncmp(MSDK_STRING("-"), argv[i], msdk_strlen(MSDK_STRING("-"))))
+            {
+                msdk_printf(MSDK_STRING(" Audio capture device name not found \n"));
+                return MFX_ERR_UNSUPPORTED;
+            }
+            else if (MFX_ERR_NONE != msdk_opt_read(argv[i], InputParams.strACaptureDeviceName))
+            {
+                PrintError(MSDK_STRING("ALSA capture device name \"%s\" is invalid"), argv[i]);
+                return MFX_ERR_UNSUPPORTED;
+            }
+            InputParams.bAlsaAudioInput = true;
+        }
+        else if ((0 == msdk_strncmp(MSDK_STRING("-aplay"), argv[i], msdk_strlen(MSDK_STRING("-aplay")))))
+        {
+            VAL_CHECK(i + 1 == argc, i, argv[i]);
+            i++;
+            if (0 == msdk_strncmp(MSDK_STRING("-"), argv[i], msdk_strlen(MSDK_STRING("-"))))
+            {
+                msdk_printf(MSDK_STRING(" Audio playback device name not found \n"));
+                return MFX_ERR_UNSUPPORTED;
+            }
+            else if (MFX_ERR_NONE != msdk_opt_read(argv[i], InputParams.strAPlayDeviceName))
+            {
+                PrintError(MSDK_STRING("ALSA playback device name \"%s\" is invalid"), argv[i]);
+                return MFX_ERR_UNSUPPORTED;
+            }
+        }
+        else if ((0 == msdk_strncmp(MSDK_STRING("-amp3"), argv[i], msdk_strlen(MSDK_STRING("-amp3")))))
+        {
+            VAL_CHECK(i + 1 == argc, i, argv[i]);
+            i++;
+            if (0 == msdk_strncmp(MSDK_STRING("-"), argv[i], msdk_strlen(MSDK_STRING("-"))))
+            {
+                msdk_printf(MSDK_STRING(" Audio mp3 file name not found \n"));
+                return MFX_ERR_UNSUPPORTED;
+            }
+            else if (MFX_ERR_NONE != msdk_opt_read(argv[i], InputParams.strAMP3Name))
+            {
+                PrintError(MSDK_STRING("MP3 file name \"%s\" is invalid \n"), argv[i]);
+                return MFX_ERR_UNSUPPORTED;
+            }
+        }
+        else if ((0 == msdk_strncmp(MSDK_STRING("-amux"), argv[i], msdk_strlen(MSDK_STRING("-amux"))))
+            || (0 == msdk_strncmp(MSDK_STRING("-vmux"), argv[i], msdk_strlen(MSDK_STRING("-vmux")))))
+        {
+            VAL_CHECK(i + 1 == argc, i, argv[i]);
+            i++;
+            if (0 == msdk_strncmp(MSDK_STRING("-"), argv[i], msdk_strlen(MSDK_STRING("-"))))
+            {
+                msdk_printf(MSDK_STRING("MP4 file name not found \n"));
+                return MFX_ERR_UNSUPPORTED;
+            }
+            else if (MFX_ERR_NONE != msdk_opt_read(argv[i], InputParams.strAMP4Name))
+            {
+                PrintError(MSDK_STRING("MP4 file name  \"%s\" is invalid \n"), argv[i]);
+                return MFX_ERR_UNSUPPORTED;
+            }
+            else
+            {
+                int fileNameSize = msdk_strlen(InputParams.strAMP4Name);
+                string mp4ExtName = ".mp4";
+                int mp4ExtSize = mp4ExtName.length();
+                if (strncmp(InputParams.strAMP4Name + (fileNameSize - mp4ExtSize), mp4ExtName.c_str(), mp4ExtSize))
+                {
+                    PrintError(MSDK_STRING("MP4 file name \"%s\" should end with \".mp4\"\n"), argv[i]);
+                    return MFX_ERR_UNSUPPORTED;
+                }
             }
         }
         #ifdef ENABLE_INFERENCE
@@ -1502,11 +1631,11 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
             {
                 inferParType = INFER_PAR_INTERVAL;
             }
-            else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("max_detect"), msdk_strlen(MSDK_STRING("max_detect")))) 
+            else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("max_detect"), msdk_strlen(MSDK_STRING("max_detect"))))
             {
                 inferParType = INFER_PAR_MAX_DETECT;
             }
-            else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("remote_blob"), msdk_strlen(MSDK_STRING("remote_blob")))) 
+            else if (0 == msdk_strncmp(argv[i]+8, MSDK_STRING("remote_blob"), msdk_strlen(MSDK_STRING("remote_blob"))))
             {
                 inferParType = INFER_PAR_REMOTE_BLOB;
                 InputParams.InferRemoteBlob = true;
@@ -1575,6 +1704,14 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
             }
         } //Support inference in pipeline
         #endif
+        else if ( (0 == msdk_strncmp(MSDK_STRING("-detect_result_save"), argv[i], msdk_strlen(MSDK_STRING("-detect_result_save")))))
+        {
+            VAL_CHECK(i+1 == argc, i, argv[i]);
+            i++;
+            SIZE_CHECK((msdk_strlen(argv[i])+1) > MSDK_ARRAY_LEN(InputParams.strDetectResultSaveFile));
+            msdk_opt_read(argv[i], InputParams.strDetectResultSaveFile);
+
+        } //Support saving detect results to local file
         else if ( (0 == msdk_strncmp(MSDK_STRING("-rtsp_save"), argv[i], msdk_strlen(MSDK_STRING("-rtsp_save")))))
         {
             VAL_CHECK(i+1 == argc, i, argv[i]);
@@ -1598,7 +1735,7 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
             msdk_opt_read(argv[i], InputParams.strDstFile);
             // while o::raw with output file name /dev/null, will drop the decode output frame
             if ((0 == msdk_strncmp(MSDK_STRING("raw"), argv[i-1]+4, msdk_strlen("raw")))
-                && (0  == msdk_strncmp(MSDK_STRING("/dev/null"), InputParams.strDstFile, msdk_strlen(MSDK_STRING("/dev/null"))))) 
+                && (0  == msdk_strncmp(MSDK_STRING("/dev/null"), InputParams.strDstFile, msdk_strlen(MSDK_STRING("/dev/null")))))
             {
                 InputParams.bDropDecOutput = true;
             }
@@ -1693,8 +1830,12 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
 #endif
         else if (0 == msdk_strcmp(argv[i], MSDK_STRING("-sys")))
         {
-            InputParams.bUseOpaqueMemory = false;
+//            InputParams.bUseOpaqueMemory = false;
             InputParams.bForceSysMem = true;
+        }
+        else if (0 == msdk_strcmp(argv[i], MSDK_STRING("-ext_allocator")) || 0 == msdk_strcmp(argv[i], MSDK_STRING("-MemType::video")))
+        {
+            //InputParams.bUseOpaqueMemory = false;
         }
         else if (0 == msdk_strcmp(argv[i], MSDK_STRING("-perf_opt")))
         {
@@ -2076,7 +2217,7 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
 #ifdef LIBVA_SUPPORT
             InputParams.libvaBackend = MFX_LIBVA_DRM;
 #endif
-            InputParams.bUseOpaqueMemory = false;
+//            InputParams.bUseOpaqueMemory = false;
 
             VAL_CHECK(i + 1 == argc, i, argv[i]);
             i++;
@@ -2090,7 +2231,7 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
             if (InputParams.eModeExt == Native)
                 InputParams.eModeExt = VppCompOnly;
 
-            bool bOpaqueFlagChanged = false;
+/*            bool bOpaqueFlagChanged = false;
             for (mfxU32 j = 0; j < m_SessionArray.size(); j++)
             {
                 if (m_SessionArray[j].bUseOpaqueMemory)
@@ -2103,7 +2244,7 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
             if (bOpaqueFlagChanged)
             {
                 msdk_printf(MSDK_STRING("WARNING: internal allocators were disabled because of composition+rendering requirement \n\n"));
-            }
+            }*/
         }
         else if (0 == msdk_strncmp(MSDK_STRING("-vpp_comp_dump"), argv[i], msdk_strlen(MSDK_STRING("-vpp_comp_dump"))))
         {
@@ -2165,10 +2306,10 @@ mfxStatus CmdProcessor::ParseParamsForOneSession(mfxU32 argc, msdk_char *argv[])
             }
         }
 #endif
-        else if (0 == msdk_strcmp(argv[i], MSDK_STRING("-ext_allocator")))
+/*        else if (0 == msdk_strcmp(argv[i], MSDK_STRING("-ext_allocator")))
         {
             InputParams.bUseOpaqueMemory = false;
-        }
+        } */
         else if (0 == msdk_strcmp(argv[i], MSDK_STRING("-vpp::sys")))
         {
             InputParams.VppOutPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
@@ -2718,11 +2859,17 @@ mfxStatus CmdProcessor::ParseOption__set(msdk_char* strCodecType, msdk_char* str
 
 mfxStatus CmdProcessor::VerifyAndCorrectInputParams(TranscodingSample::sInputParams &InputParams)
 {
-    if (0 == msdk_strlen(InputParams.strSrcFile) && (InputParams.eMode == Sink || InputParams.eMode == Native))
+    if ((0 == msdk_strlen(InputParams.strSrcFile) && 0==msdk_strlen(InputParams.strV4l2VideoDeviceName)) && (InputParams.eMode == Sink || InputParams.eMode == Native))
     {
         PrintError(MSDK_STRING("Source file name not found"));
         return MFX_ERR_UNSUPPORTED;
     };
+
+    if (InputParams.bV4l2RawInput && (0 == msdk_strlen(InputParams.strV4l2VideoDeviceName) || 0 == msdk_strlen(InputParams.strV4l2SubdevName)))
+    {
+        PrintError(MSDK_STRING("V4l2 VideoDevice or Subdev Name not found"));
+        return MFX_ERR_UNSUPPORTED;
+    }
 
     if ( 0 == msdk_strlen(InputParams.strDstFile)
       && (InputParams.eMode == Source || InputParams.eMode == Native || InputParams.eMode == VppComp) && InputParams.eModeExt != VppCompOnly)
@@ -2757,6 +2904,7 @@ mfxStatus CmdProcessor::VerifyAndCorrectInputParams(TranscodingSample::sInputPar
        MFX_CODEC_JPEG != InputParams.DecodeId &&
        MFX_CODEC_VP9 != InputParams.DecodeId &&
        MFX_CODEC_RGB4 != InputParams.DecodeId &&
+       MFX_CODEC_DUMP != InputParams.DecodeId &&
        InputParams.eMode != Source)
     {
         PrintError(MSDK_STRING("Unknown decoder\n"));

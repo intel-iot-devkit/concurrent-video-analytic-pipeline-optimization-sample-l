@@ -812,7 +812,6 @@ cv::Mat MotPedestrianTracker::DrawActiveTracks(cv::Mat &frame, float ratiow, flo
         int num_colors = 100;
         colors_ = GenRandomColors(num_colors);
     }
-
     auto active_tracks = GetActiveTracks();
     for (auto active_track : active_tracks) {
         size_t idx = active_track.first;

@@ -1,0 +1,3 @@
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc -o::sink -n 10 -infer::fd ./model  -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 300 -vpp_comp_dst_h 300 -ext_allocator -n 7 -infer::offline -infer::remote_blob -detect_result_save /tmp/1.txt
+-i::h264 ./video/1080p.h264 -join -hw  -async 4 -dec_postproc -o::sink -n 10 -infer::fd ./model  -vpp_comp_dst_x 320 -vpp_comp_dst_y 0 -vpp_comp_dst_w 300 -vpp_comp_dst_h 300 -ext_allocator -n 7 -infer::offline -infer::remote_blob -detect_result_save /tmp/2.txt
+-vpp_comp_only 1 -w 1280 -h 720 -async 4 -threads 2 -join -hw  -i::source -ext_allocator -ec::rgb4 -vpp_comp_dump /tmp/720p.rgb4

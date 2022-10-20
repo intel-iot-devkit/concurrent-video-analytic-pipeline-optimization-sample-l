@@ -23,7 +23,12 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 CosDistance::CosDistance(const cv::Size &descriptor_size)
     : descriptor_size_(descriptor_size) {
-    PT_CHECK(descriptor_size.area() != 0);
+    if (descriptor_size.area()<=0)
+    {
+        throw std::runtime_error("descriptor_size  is less than 0 ...");
+    }
+
+//    PT_CHECK(descriptor_size.area() != 0);
 }
 
 float CosDistance::Compute(const cv::Mat &descr1, const cv::Mat &descr2) {

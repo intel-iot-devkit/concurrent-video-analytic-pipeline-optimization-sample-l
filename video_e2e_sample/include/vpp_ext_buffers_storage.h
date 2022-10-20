@@ -20,9 +20,9 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #ifndef __VPP_EXT_BUFFERS_STORAGE_H__
 #define __VPP_EXT_BUFFERS_STORAGE_H__
 
-#include "mfxvideo.h"
-#include "mfxvideo++.h"
-#include "mfxstructures.h"
+#include "vpl/mfxvideo.h"
+#include "vpl/mfxvideo++.h"
+#include "vpl/mfxstructures.h"
 #include "sample_defs.h"
 #include <vector>
 

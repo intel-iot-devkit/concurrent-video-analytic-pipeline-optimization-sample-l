@@ -25,7 +25,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <mutex>
 
 #include <opencv2/imgproc/imgproc.hpp>
-#include <samples/ocv_common.hpp>
+//#include <samples/ocv_common.hpp>
 #include <samples/common.hpp>
 
 #include "human_pose_estimator.hpp"
@@ -33,6 +33,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <gpu/gpu_context_api_ocl.hpp>
 #include  <cldnn/cldnn_config.hpp>
 #include "peak.hpp"
+#include "openvino/openvino.hpp"
+#include <opencv2/opencv.hpp>
 
 using namespace InferenceEngine;
 
@@ -98,62 +100,50 @@ int HumanPoseEstimator::Init(bool remoteBlob, VADisplay va_dpy, int renderW, int
         return -1;
     }
 
-    std::cout<<"Loading network "<<modelPath<<" on device "<<targetDeviceName<<" is done."<<std::endl;
-    InferenceEngine::CNNNetwork &detectorNetwork = mNetworkInfo->mNetwork;
-
-    auto inputIt = detectorNetwork.getInputsInfo().begin();
-    if (inputIt == detectorNetwork.getInputsInfo().end())
-    {
-        return -1;
-    }
-
-    InferenceEngine::InputInfo::Ptr inputInfo = inputIt->second;
-    inputLayerSize = cv::Size(inputInfo->getTensorDesc().getDims()[3], inputInfo->getTensorDesc().getDims()[2]);
-
-    mInputName = inputInfo->name();
-    
-    InferenceEngine::OutputsDataMap outputInfo = detectorNetwork.getOutputsInfo();
-    auto outputBlobsIt = outputInfo.begin();
-    if (outputBlobsIt == outputInfo.end())
-    {
-        return -1;
-    }
-    pafsBlobName = outputBlobsIt->first;
-    outputBlobsIt++;
-    if (outputBlobsIt == outputInfo.end())
-    {
-        return -1;
-    }
-    heatmapsBlobName = outputBlobsIt->first;
-
-    mRequest =  mNetworkInfo->CreateNewInferRequest();
+    inputLayerSize = cv::Size(456, 256);
+    mRequest1 =  mNetworkInfo->CreateNewInferRequest2();
+    mInputName = mNetworkInfo->input_tensor_name;
     return 0;
 }
 
 
 std::vector<HumanPose> HumanPoseEstimator::estimate(VASurfaceID va_surface) {
-    auto nv12_blob = gpu::make_shared_blob_nv12(456,
-                                                256,
-                                                mNetworkInfo->mSharedVAContext,
-                                                va_surface
-                                                );
-    mRequest.SetBlob(mInputName, nv12_blob);
-    mRequest.Infer();
+    std::vector<HumanPose> poses;
+    if (!mNetworkInfo)
+    {
+        return poses;
+    }
+
+    //va_surface = alloc_va_surface(mVaDpy,  mInputW, mInputH);
+
+    auto nv12_blob = mNetworkInfo->mVAContext->create_tensor_nv12(256, 456, va_surface);
+    auto infer_request = mRequest1;// mNetworkInfo->mCompiled_model.create_infer_request();
+
+    auto model = mNetworkInfo->mModel;
+    auto input0 = model->get_parameters().at(0);
+    auto input1 = model->get_parameters().at(1);
+
+    auto shape = input0->get_shape();
+    auto width = shape[1];
+    auto height = shape[2];
+
+    mRequest1->set_tensor(input0->get_friendly_name(), nv12_blob.first);
+    mRequest1->set_tensor(input1->get_friendly_name(), nv12_blob.second);
+    mRequest1->infer();
+
+
+    ov::Tensor pafs = mRequest1->get_tensor("Mconv7_stage2_L1");
+    ov::Tensor heatmap = mRequest1->get_tensor("Mconv7_stage2_L2");
 
     cv::Size imageSize(456, 256);
-    InferenceEngine::Blob::Ptr pafsBlob = mRequest.GetBlob(pafsBlobName);
-    InferenceEngine::Blob::Ptr heatMapsBlob = mRequest.GetBlob(heatmapsBlobName);
-    CV_Assert(heatMapsBlob->getTensorDesc().getDims()[1] == keypointsNumber + 1);
-    InferenceEngine::SizeVector heatMapDims =
-            heatMapsBlob->getTensorDesc().getDims();
-    std::vector<HumanPose> poses = postprocess(
-            heatMapsBlob->buffer(),
-            heatMapDims[2] * heatMapDims[3],
+    poses  = postprocess(
+            heatmap.data<float>(),
+            32 * 57,
             keypointsNumber,
-            pafsBlob->buffer(),
-            heatMapDims[2] * heatMapDims[3],
-            pafsBlob->getTensorDesc().getDims()[1],
-            heatMapDims[3], heatMapDims[2], imageSize);
+            pafs.data<float>(),
+            32 * 57,
+            38,
+            57, 32, imageSize);
 
     return poses;
 }
@@ -163,40 +153,27 @@ std::vector<HumanPose> HumanPoseEstimator::estimate(const cv::Mat& image) {
 
     cv::Size imageSize = image.size();
     //The input size isn't allowed to change
-#if 0
-    if (inputWidthIsChanged(imageSize)) {
-        auto input_shapes = network.getInputShapes();
-        std::string input_name;
-        InferenceEngine::SizeVector input_shape;
-        std::tie(input_name, input_shape) = *input_shapes.begin();
-        input_shape[2] = inputLayerSize.height;
-        input_shape[3] = inputLayerSize.width;
-        input_shapes[input_name] = input_shape;
-        network.reshape(input_shapes);
-        executableNetwork = plugin.LoadNetwork(network, {});
-        request = executableNetwork.CreateInferRequest();
-    }
-#endif
+    ov::Tensor input_tensor = mRequest1->get_tensor(mInputName);
 
+    static const ov::Layout layout{"NHWC"};
+    const ov::Shape& shape = input_tensor.get_shape();
+    cv::Size size{int(shape[ov::layout::width_idx(layout)]), int(shape[ov::layout::height_idx(layout)])};
 
-    InferenceEngine::Blob::Ptr input = mRequest.GetBlob(mInputName);
-    matU8ToBlob<uint8_t>(image, input);
-    mRequest.Infer();
+    cv::resize(image, cv::Mat{size, CV_8UC3, input_tensor.data()}, size);
 
-    InferenceEngine::Blob::Ptr pafsBlob = mRequest.GetBlob(pafsBlobName);
-    InferenceEngine::Blob::Ptr heatMapsBlob = mRequest.GetBlob(heatmapsBlobName);
-    CV_Assert(heatMapsBlob->getTensorDesc().getDims()[1] == keypointsNumber + 1);
-    InferenceEngine::SizeVector heatMapDims =
-            heatMapsBlob->getTensorDesc().getDims();
-    std::vector<HumanPose> poses = postprocess(
-            heatMapsBlob->buffer(),
-            heatMapDims[2] * heatMapDims[3],
+    mRequest1->infer();
+
+    ov::Tensor pafs = mRequest1->get_tensor("Mconv7_stage2_L1");
+    ov::Tensor heatmap = mRequest1->get_tensor("Mconv7_stage2_L2");
+
+    std::vector<HumanPose> poses  = postprocess(
+            heatmap.data<float>(),
+            32 * 57,
             keypointsNumber,
-            pafsBlob->buffer(),
-            heatMapDims[2] * heatMapDims[3],
-            pafsBlob->getTensorDesc().getDims()[1],
-            heatMapDims[3], heatMapDims[2], imageSize);
-
+            pafs.data<float>(),
+            32 * 57,
+            38,
+            57, 32, imageSize);
     return poses;
 }
 

@@ -42,55 +42,21 @@ MotIeDescriptor::MotIeDescriptor(const std::string& model_path, const std::strin
     //    network_opt.enableRemoteBlob = remote_blob;
     //    network_opt.vaDpy = va_dpy;
     //}
-
     network_info_ = NetworkFactory::GetNetwork(model_path, target_device_name, network_opt);
     if (!network_info_)
     {
         std::cout << "NetworkFactory::GetNetwork(" << model_path << "," << target_device_name << ") failed!" << std::endl;
         THROW_IE_EXCEPTION << "NetworkFactory::GetNetwork(" << model_path << "," << target_device_name << ") failed!";
     }
-    std::cout << "Loading network " << model_path << " on device " << target_device_name << " is done." << std::endl;
+    infer_request_ = network_info_->CreateNewInferRequest2();
+    input_name_ = network_info_->input_tensor_name;
+    output_name_ = network_info_->output_tensor_name;
+    max_detections_count_ = network_info_->m_max_detections_count;
+    object_size_ = network_info_->m_object_size;
+    ov::Shape outputdims = network_info_->GetoutputDims();
 
-    InferenceEngine::CNNNetwork& cnn_network = network_info_->mNetwork;
+    result_size_ = outputdims[0]*outputdims[1];
 
-    InferenceEngine::InputsDataMap inputs_data_map;
-    inputs_data_map = cnn_network.getInputsInfo();
-    if (inputs_data_map.size() != 1) {
-        THROW_IE_EXCEPTION << "Network should have only one input";
-    }
-
-    SizeVector input_dims = inputs_data_map.begin()->second->getTensorDesc().getDims();
-    pre_alloc_input_blob_ = make_shared_blob<uint8_t>(TensorDesc(Precision::U8, input_dims, Layout::NCHW));
-    pre_alloc_input_blob_->allocate();
-    BlobMap inputs_blob_map;
-    inputs_blob_map[inputs_data_map.begin()->first] = pre_alloc_input_blob_;
-
-    outputs_data_map_ = cnn_network.getOutputsInfo();
-
-    for (auto&& item : outputs_data_map_) {
-        SizeVector output_dims = item.second->getTensorDesc().getDims();
-        auto output_layout = item.second->getTensorDesc().getLayout();
-        item.second->setPrecision(Precision::FP32);
-        TBlob<float>::Ptr output =
-            make_shared_blob<float>(TensorDesc(Precision::FP32, output_dims, output_layout));
-        output->allocate();
-        outputs_blob_map_[item.first] = output;
-    }
-
-
-    infer_request_ = network_info_->CreateNewInferRequest();
-
-    infer_request_.SetInput(inputs_blob_map);
-    infer_request_.SetOutput(outputs_blob_map_);
-    if (outputs_blob_map_.size() != 1) {
-        THROW_IE_EXCEPTION << "Demo supports topologies only with 1 output";
-    }
-    OutputsDataMap::iterator it = outputs_data_map_.begin();
-    result_size_ = 0;
-    if ((it != outputs_data_map_.end())) {
-        InferenceEngine::SizeVector dims = outputs_data_map_.begin()->second->getTensorDesc().getDims();
-        result_size_ = std::accumulate(std::next(dims.begin(), 1), dims.end(), 1, std::multiplies<int>());
-    }
 }
 
 MotIeDescriptor::~MotIeDescriptor() {
@@ -150,9 +116,7 @@ void MotIeDescriptor::InferBatch(
             matU8ToBlob<uint8_t>(frames[batch_i + b], pre_alloc_input_blob_, b);
         }
 
-        infer_request_.Infer();
-
-        fetch_results(outputs_blob_map_, current_batch_size);
+        infer_request_->infer();
     }
 }
 

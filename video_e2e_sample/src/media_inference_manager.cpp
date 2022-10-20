@@ -19,7 +19,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include <unistd.h>
-#include <samples/ocv_common.hpp>
+//#include <samples/ocv_common.hpp>
 #include <samples/common.hpp>
 #include "sample_utils.h"
 #include "media_inference_manager.h"
@@ -39,6 +39,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #define FD_IR_FILE_NAME "mobilenet-ssd.xml"
 #else
 #define FD_IR_FILE_NAME "face-detection-retail-0004.xml"
+//#define FD_IR_FILE_NAME "face-detection-adas-0001.xml"
 #endif
 
 
@@ -96,7 +97,7 @@ MediaInferenceManager::~MediaInferenceManager()
 int MediaInferenceManager::Init(int dec_w, int dec_h,
         int infer_type, const char *model_dir,
         enum InferDeviceType device, int inferInterval, int maxObjNum,
-        bool remoteBlob, VADisplay vaDpy)
+        bool remoteBlob, VADisplay vaDpy, msdk_char* str_detectResultsavefile)
 {
     int ret = 0;
     mInferType = infer_type;
@@ -104,6 +105,7 @@ int MediaInferenceManager::Init(int dec_w, int dec_h,
     mDecH = dec_h;
     mMaxObjNum = maxObjNum;
     mInferInterval = inferInterval;
+    msdk_opt_read(str_detectResultsavefile, m_strDetectResultSaveFile);
 
     if (remoteBlob && (!vaDpy))
     {
@@ -155,7 +157,7 @@ int MediaInferenceManager::Init(int dec_w, int dec_h,
     return ret;
 }
 
-int MediaInferenceManager::RunInfer(mfxFrameData *pData, mfxFrameData *pData_dec, bool inferOffline, int decSurfPitch)
+int MediaInferenceManager::RunInfer(mfxFrameData *pData, mfxFrameData *pData_dec, bool inferOffline, int decSurfPitch, int frameNum)
 {
     if (!mInit)
     {
@@ -166,6 +168,7 @@ int MediaInferenceManager::RunInfer(mfxFrameData *pData, mfxFrameData *pData_dec
     {
         case InferTypeFaceDetection:
             RunInferFD(pData, pData_dec, inferOffline, decSurfPitch);
+            SaveFDResults(frameNum);
             break;
         default:
             msdk_printf(MSDK_STRING("ERROR:Unsupported inference type %d\n"), mInferType);
@@ -174,7 +177,7 @@ int MediaInferenceManager::RunInfer(mfxFrameData *pData, mfxFrameData *pData_dec
     return 0;
 }
 
-int MediaInferenceManager::RunInfer(mfxFrameData *pData, bool inferOffline)
+int MediaInferenceManager::RunInfer(mfxFrameData *pData, bool inferOffline, int frameNum)
 {
     if (!mInit)
     {
@@ -186,15 +189,20 @@ int MediaInferenceManager::RunInfer(mfxFrameData *pData, bool inferOffline)
         case InferTypeFaceDetection:
         case InferTypeYolo:
             RunInferFD(pData, inferOffline);
+            SaveFDResults(frameNum);
+            SaveYOLOResults(frameNum);
             break;
         case InferTypeHumanPoseEst:
             RunInferHP(pData, inferOffline);
+            SaveHPResults(frameNum);
             break;
         case InferTypeVADetect:
             RunInferVDVA(pData, inferOffline);
+            SaveVDResults(frameNum);
             break;
         case InferTypeMOTracker:
             RunInferMOT(pData, inferOffline);
+            SaveMOTResults(frameNum);
             break;
         default:
             msdk_printf(MSDK_STRING("ERROR:Unsupported inference type %d\n"), mInferType);
@@ -220,7 +228,7 @@ int MediaInferenceManager::RenderRepeatLast(mfxFrameData *pData, bool isGrey, in
     }
     return 0;
 }
- 
+
 int MediaInferenceManager::RenderRepeatLast(mfxFrameData *pData)
 {
     if (!mInit)
@@ -258,8 +266,10 @@ int MediaInferenceManager::RenderRepeatLastFD(mfxFrameData *pData, bool isGrey, 
     {
         case InferTypeYolo:
             if (mObjectDetector && ( mYoloResults.size() > 0)){
-
-                Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pData->B);
+                unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
+                Mat frameRGB4pad(mDecH, pData->Pitch / 4, CV_8UC4, (unsigned char *)pbuf);
+                Rect content(0, 0, mDecW, mDecH);
+                Mat frameRGB4 = frameRGB4pad(content);
                 mObjectDetector->RenderResults(mYoloResults, frameRGB4);
             }
             break;
@@ -277,7 +287,9 @@ int MediaInferenceManager::RenderRepeatLastFD(mfxFrameData *pData, bool isGrey, 
                 }
                 else
                 {
-                    Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pData->B);
+                    Mat frameRGB4pad(mDecH, pData->Pitch / 4, CV_8UC4, (unsigned char *)pData->B);
+                    Rect content(0, 0, mDecW, mDecH);
+                    Mat frameRGB4 = frameRGB4pad(content);
 
                     mObjectDetector->RenderResults(mFDResults, frameRGB4);
                 }
@@ -290,7 +302,10 @@ int MediaInferenceManager::RenderRepeatLastFD(mfxFrameData *pData, bool isGrey, 
 int MediaInferenceManager::RenderRepeatLastHP(mfxFrameData *pData)
 {
     if (mPoses.size() > 0){
-        Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pData->B);
+        unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
+        Mat frameRGB4pad(mDecH, pData->Pitch / 4, CV_8UC4, (unsigned char *)pbuf);
+        Rect content(0, 0, mDecW, mDecH);
+        Mat frameRGB4 = frameRGB4pad(content);
         renderHumanPose(mPoses, frameRGB4);
     }
 
@@ -300,7 +315,10 @@ int MediaInferenceManager::RenderRepeatLastHP(mfxFrameData *pData)
 int MediaInferenceManager::RenderRepeatLastVD(mfxFrameData *pData)
 {
     if (mVehicleDetector && ( mVDResults.size() > 0)){
-        Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pData->B);
+        unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
+        Mat frameRGB4pad(mDecH, pData->Pitch / 4, CV_8UC4, (unsigned char *)pbuf);
+        Rect content(0, 0, mDecW, mDecH);
+        Mat frameRGB4 = frameRGB4pad(content);
         mVehicleDetector->RenderVDResults(mVDResults, frameRGB4);
     }
 
@@ -321,7 +339,9 @@ int MediaInferenceManager::RunInferHP(mfxFrameData *pData, bool inferOffline)
     if (!mRemoteBlob)
     {
         unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
-        Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pbuf);
+        Mat frameRGB4pad(mDecH, pData->Pitch / 4, CV_8UC4, (unsigned char *)pbuf);
+        Rect content(0, 0, mDecW, mDecH);
+        Mat frameRGB4 = frameRGB4pad(content);
         Mat frameScl(mInputH, mInputH, CV_8UC4);
         Mat frame(mInputH, mInputW, CV_8UC3);
 
@@ -350,8 +370,8 @@ int MediaInferenceManager::RunInferHP(mfxFrameData *pData, bool inferOffline)
 
 int MediaInferenceManager::RunInferFD(mfxFrameData *pData, mfxFrameData *pData_dec, bool inferOffline, int decSurfPitch)
 {
-    int alignedH = MSDK_ALIGN16(mInputH); 
-    int alignedW = MSDK_ALIGN32(mInputW); 
+    int alignedH = MSDK_ALIGN16(mInputH);
+    int alignedW = MSDK_ALIGN32(mInputW);
 
     if (mFDResults.size() > 0)
     {
@@ -379,8 +399,11 @@ int MediaInferenceManager::RunInferFD(mfxFrameData *pData, bool inferOffline)
 {
     if (!mRemoteBlob)
     {
+        
         unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
-        Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pbuf);
+        Mat frameRGB4pad(mDecH, pData->Pitch / 4, CV_8UC4, (unsigned char *)pbuf);
+        Rect content(0, 0, mDecW, mDecH);
+        Mat frameRGB4 = frameRGB4pad(content);
         Mat frame(mInputH, mInputW, CV_8UC3);
         if (mDecH == mInputH && mInputW == mDecW)
         {
@@ -408,7 +431,7 @@ int MediaInferenceManager::RunInferFD(mfxFrameData *pData, bool inferOffline)
                     mObjectDetector->RenderResults(mYoloResults, frameRGB4);
                 }
                 break;
-            default: 
+            default:
                 if (mFDResults.size() > 0)
                 {
                     mFDResults.clear();
@@ -435,7 +458,10 @@ int MediaInferenceManager::RunInferFD(mfxFrameData *pData, bool inferOffline)
 int MediaInferenceManager::RunInferVDVA(mfxFrameData *pData, bool inferOffline)
 {
     unsigned char *pbuf = (pData->B < pData->R) ? pData->B : pData->R;
-    Mat frameRGB4(mDecH, mDecW, CV_8UC4, (unsigned char *)pbuf);
+
+    Mat frameRGB4pad(mDecH, pData->Pitch / 4, CV_8UC4, (unsigned char *)pbuf);
+    Rect content(0, 0, mDecW, mDecH);
+    Mat frameRGB4 = frameRGB4pad(content);
     Mat frameScl(mInputH, mInputH, CV_8UC4);
     Mat frame(mInputH, mInputW, CV_8UC3);
 
@@ -601,5 +627,191 @@ int MediaInferenceManager::InitMultiObjectTracker(const char* modelDir)
     mMultiObjectTracker = new MultiObjectTracker();
     mMultiObjectTracker->Init(detIrFile, reidIrFile, mTargetDevice, mInferInterval, mRemoteBlob, mVADpy);
     mMultiObjectTracker->SetRenderSize(mDecW, mDecH);
+    return 0;
+}
+
+int savetofile(std::string filename, std::string& str)
+{
+    try{
+        std::ofstream saveFile;
+        saveFile.open(filename,std::ios::app);
+        saveFile<< str;
+        saveFile.close();
+    }
+    catch(...){
+        std::cout<<"Cann't save Detect results to "<< filename<< " !"<<std::endl;
+        return -1;
+    }
+    return 0;
+}
+
+int MediaInferenceManager::SaveFDResults(int frameNum)
+{
+    if(!std::string(m_strDetectResultSaveFile).empty() && mFDResults.size()>0)
+    {
+        std::string str;
+        str.reserve(100);
+        str.append(std::to_string(frameNum));
+        str.append("\t");
+        for (auto &object : mFDResults)
+        {
+            if (object.confidence < 0.6)
+                continue;
+            str.append("{ ");
+            str.append(std::to_string(object.label));
+            str.append("\t");
+            str.append(std::to_string(object.confidence));
+            str.append("\t");
+            str.append(std::to_string(object.location.x));
+            str.append(",");
+            str.append(std::to_string(object.location.y));
+            str.append(",");
+            str.append(std::to_string(object.location.width));
+            str.append(",");
+            str.append(std::to_string(object.location.height));
+            str.append(" }\t");
+        }
+        str.append("\n");
+        savetofile(m_strDetectResultSaveFile,str);
+    }
+    return 0;
+}
+
+int MediaInferenceManager::SaveYOLOResults(int frameNum)
+{
+    if(!std::string(m_strDetectResultSaveFile).empty() && mYoloResults.size()>0)
+    {
+        std::string str;
+        str.reserve(100);
+        str.append(std::to_string(frameNum));
+        str.append("\t");
+        for (auto &object : mYoloResults)
+        {
+            if (object.confidence < 0.6)
+                continue;
+            str.append("{ ");
+            str.append(std::to_string(object.class_id));
+            str.append("\t\t");
+            str.append(std::to_string(object.confidence));
+            str.append("\t\t");
+            str.append(std::to_string(object.xmin));
+            str.append(",");
+            str.append(std::to_string(object.ymin));
+            str.append(",");
+            str.append(std::to_string(object.xmax));
+            str.append(",");
+            str.append(std::to_string(object.ymax));
+            str.append(" }\t");
+        }
+        str.append("\n");
+        savetofile(m_strDetectResultSaveFile,str);
+    }
+    return 0;
+}
+
+int MediaInferenceManager::SaveHPResults(int frameNum)
+{
+    if(!std::string(m_strDetectResultSaveFile).empty())
+    {
+        std::string str;
+        str.reserve(100);
+        str.append(std::to_string(frameNum));
+        str.append("\t");
+        for (auto &pose : mPoses)
+        {
+            str.append("{ ");
+            str.append(std::to_string(pose.score));
+            str.append("\t\t");
+            for(auto &point : pose.keypoints)
+            {
+                str.append(std::to_string(point.x));
+                str.append(",");
+                str.append(std::to_string(point.y));
+                str.append("\t");
+            }
+            str.append(" }\t");
+        }
+        str.append("\n");
+        savetofile(m_strDetectResultSaveFile,str);
+    }
+    return 0;
+}
+
+int MediaInferenceManager::SaveVDResults(int frameNum)
+{
+    if(!std::string(m_strDetectResultSaveFile).empty())
+    {
+        std::string str;
+        str.reserve(100);
+        str.append(std::to_string(frameNum));
+        str.append("\t");
+        for (auto &object : mVDResults)
+        {
+            if (object.confidence < 0.6)
+                continue;
+            str.append("{ ");
+            str.append(std::to_string(object.label));
+            str.append("\t");
+            str.append(std::to_string(object.confidence));
+            str.append("\t");
+            str.append(std::to_string(object.location.x));
+            str.append(",");
+            str.append(std::to_string(object.location.y));
+            str.append(",");
+            str.append(std::to_string(object.location.width));
+            str.append(",");
+            str.append(std::to_string(object.location.height));
+            str.append(" }\t\t");
+        }
+        str.append("\n");
+        savetofile(m_strDetectResultSaveFile,str);
+    }
+    return 0;
+}
+
+int MediaInferenceManager::SaveMOTResults(int frameNum)
+{
+    if(!std::string(m_strDetectResultSaveFile).empty())
+    {
+        std::string str;
+        str.reserve(100);
+        str.append(std::to_string(frameNum));
+        str.append("\t MotDetector:[");
+        for (const auto& detection : mMultiObjectTracker->GetMotDetectors())
+        {
+            str.append("{ ");
+            str.append(std::to_string(detection.object_id));
+            str.append("\t");
+            str.append(std::to_string(detection.confidence));
+            str.append("\t");
+            str.append(std::to_string(detection.rect.x));
+            str.append(",");
+            str.append(std::to_string(detection.rect.y));
+            str.append(",");
+            str.append(std::to_string(detection.rect.width));
+            str.append(",");
+            str.append(std::to_string(detection.rect.height));
+            str.append(" }\t");
+        }
+        str.append("]\t\t mMotTracker:[");
+        for (const auto& detection : mMultiObjectTracker->GetMotTrackerDetections())
+        {
+            str.append("{ ");
+            str.append(std::to_string(detection.object_id));
+            str.append("\t");
+            str.append(std::to_string(detection.confidence));
+            str.append("\t");
+            str.append(std::to_string(detection.rect.x));
+            str.append(",");
+            str.append(std::to_string(detection.rect.y));
+            str.append(",");
+            str.append(std::to_string(detection.rect.width));
+            str.append(",");
+            str.append(std::to_string(detection.rect.height));
+            str.append(" }\t");
+        }
+        str.append("]\n");
+        savetofile(m_strDetectResultSaveFile,str);
+    }
     return 0;
 }

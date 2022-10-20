@@ -34,9 +34,6 @@ Add "-fps 30" to every decoding session.
 ## How to limit the frame number of input to 1000?
 Add "-n 1000" to every decoding dessions. But please not add "-n" to encode, display and fake sink session. These sink sessions will automatically stop when the source session stops. Note, this option won't work if both "-vpp_comp_only" and "-vpp_comp" are set. 
 
-## Where can I find tutorials for inference engine?
-Please refer to https://docs.openvinotoolkit.org/latest/_docs_IE_DG_Deep_Learning_Inference_Engine_DevGuide.html
-
 ## Why HDDL card usage ratio is low for face detection inference?
 It can be caused by the decoded frames aren't fed to inference engine efficiently. The default inference interval of face detection is 6. You try to set the inference interval to a lower valuer when using HDDL as inference target device. For example, with 3 HDDL L2 card, adding "-infer::inverval 1" to 16-channel face detection par file can increase the HDDL usage ratio to 100%.  
 
@@ -46,7 +43,3 @@ face-detection-retail-0004, human-pose-estimation-0001, vehicle-attributes-recog
 
 ## Can I use other OpenVINO version rather than 2021.3 ?
 Yes, but you have to modify some code due to interfaces changing. And also you need to download the IR files and copy them to ./model manually. Please refer to script/download_and_copy_models.sh for how to download the IR files.
-
-## When run 4 channel decode plus inference and display on APL, the CPU occupy ratio is very high and fps is low
-Please refer to par file par_file/inference/n4_face_detection_rgbp.par. It uses option "-dc::rgbp" that make the SFC outputs RGB4 for display and VPP outputs RGBP for inference input. Then there is no need to use OpenCV for resizing and color conversion which consume much CPU time on APL.
-Note, "-dc::rgbp" only works with "-infer::fd". Will support more inference types in the future.

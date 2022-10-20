@@ -1,0 +1,4 @@
+-i::v4l2 /dev/video51 /dev/v4l-subdev6 mipi_port_dual_1 -join -hw -async 2 -o::sink -vpp_comp_dst_x 0 -vpp_comp_dst_y 0 -vpp_comp_dst_w 960 -vpp_comp_dst_h 1080 -ext_allocator
+-i::v4l2 /dev/video54 /dev/v4l-subdev5 mipi_port_dual_2 -join -hw -async 2 -o::sink -vpp_comp_dst_x 960 -vpp_comp_dst_y 0 -vpp_comp_dst_w 960 -vpp_comp_dst_h 1080 -ext_allocator
+-i::v4l2 /dev/video52 /dev/v4l-subdev7  mipi_port_single  -join -hw  -async 2 -o::sink -vpp_comp_dst_x 1920 -vpp_comp_dst_y 0 -vpp_comp_dst_w 1920 -vpp_comp_dst_h 1080 -ext_allocator
+-vpp_comp_only 3 -w 3840 -h 2160 -async 2 -threads 2 -join -hw  -i::source -ext_allocator -ec::rgb4 -rdrm
