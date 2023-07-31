@@ -2,6 +2,7 @@
 Support users to quickly setup and adjust the core concurrent video analysis workload through configuration file to obtain the best performance of video codec, post-processing and inference based on Intel® integrated GPU according to their product requirements.
 Users can use the sample application video_e2e_sample to complete runtime performance evaluation or as a reference for debugging core video workload issues.
 
+ 
 ## Typical workloads
 Sample par files can be found in par_files directory. Verfied on i7-8559U. Performance differs on other platforms.
 * 16 1080p H264 decoding, scaling, face detection inference, rendering inference results, composition, saving composition results to local H264 file, and display
